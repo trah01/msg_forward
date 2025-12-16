@@ -152,7 +152,7 @@ void sendSMSToServer(const char* sender, const char* message, const char* timest
   }
   
   if (!hasEnabledChannel) {
-    Serial.println("没有启用的推送通道");
+    Serial.println("无HTTP推送通道");
     return;
   }
   

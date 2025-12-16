@@ -141,17 +141,21 @@
   "status": "online",
   "ip": "192.168.1.100",
   "wifi_rssi": -45,
+  "wifi_status": "极好",
   "lte_rsrp": -85,
-  "network_status": "registered_home"
+  "lte_status": "良好",
+  "apn": "GIFFGAFF.COM"
 }
 ```
 
 | 字段 | 说明 |
 |------|------|
 | `status` | 在线/离线 |
-| `wifi_rssi` | WiFi 信号强度，越接近0越好 |
-| `lte_rsrp` | 4G 信号强度，-80以上算好，-100以下较差 |
-| `network_status` | 网络状态（已注册/搜索中/未注册） |
+| `wifi_rssi` | WiFi 信号强度 (dBm) |
+| `wifi_status` | WiFi 信号评价（极好/很好/良好/一般/较弱/很差） |
+| `lte_rsrp` | 4G 信号强度 (dBm) |
+| `lte_status` | 4G 信号评价（极好/良好/一般/较弱/很差） |
+| `apn` | 当前 APN |
 
 ### Home Assistant 配置示例
 
@@ -166,8 +170,7 @@ mqtt:
       
     - name: "4G信号强度"
       state_topic: "sms/a1b2c3/status"
-      value_template: "{{ value_json.lte_rsrp }}"
-      unit_of_measurement: "dBm"
+      value_template: "{{ value_json.lte_rsrp }} dBm ({{ value_json.lte_status }})"
 ```
 
 ### 仅控制模式

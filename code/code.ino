@@ -192,18 +192,14 @@ void loop() {
           sendATandWaitOK("AT+CGACT=0,1", 5000);
           Serial.println("定时Ping完成");
           
-          #ifdef ENABLE_MQTT
           publishMqttStatus("active_ping");
-          #endif
         }
       } else if (config.timerType == 1 && config.timerPhone.length() > 0 && config.timerMessage.length() > 0) {
         // 定时发送短信
         Serial.println("发送保号短信...");
         sendSMS(config.timerPhone.c_str(), config.timerMessage.c_str());
         
-        #ifdef ENABLE_MQTT
         publishMqttSmsSent(config.timerPhone.c_str(), config.timerMessage.c_str(), true);
-        #endif
       }
     }
   }

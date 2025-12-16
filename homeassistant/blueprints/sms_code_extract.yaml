@@ -1,0 +1,70 @@
+blueprint:
+  name: 短信转发器 - 验证码提取通知
+  description: 自动提取短信中的验证码，并发送优化后的通知
+  domain: automation
+  
+  input:
+    mqtt_topic:
+      name: MQTT 主题
+      description: "短信接收主题，格式：{前缀}/{设备ID}/sms/received"
+      default: "sms/a1b2c3/sms/received"
+      selector:
+        text:
+    
+    notify_service:
+      name: 通知服务
+      description: 选择要发送通知的服务
+      selector:
+        text:
+      default: "notify.mobile_app_iphone"
+
+trigger:
+  - platform: mqtt
+    topic: !input mqtt_topic
+
+action:
+  - variables:
+      sender: "{{ trigger.payload_json.sender }}"
+      message: "{{ trigger.payload_json.message }}"
+      # 提取4-8位数字验证码
+      code: >-
+        {% set ns = namespace(code='') %}
+        {% set patterns = ['验证码', '校验码', '动态码', 'code', 'CODE', '码'] %}
+        {% for pattern in patterns %}
+          {% if pattern in message %}
+            {% set matches = message | regex_findall('[0-9]{4,8}') %}
+            {% if matches %}
+              {% set ns.code = matches[0] %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.code }}
+  
+  - choose:
+      # 如果提取到验证码，发送简洁通知
+      - conditions:
+          - condition: template
+            value_template: "{{ code != '' }}"
+        sequence:
+          - service: !input notify_service
+            data:
+              title: "验证码: {{ code }}"
+              message: "来自 {{ sender }}"
+              data:
+                push:
+                  sound: default
+                tag: "sms_code_{{ sender }}"
+    
+    # 否则发送原始短信
+    default:
+      - service: !input notify_service
+        data:
+          title: "{{ sender }}"
+          message: "{{ message }}"
+          data:
+            push:
+              sound: default
+            tag: "sms_{{ sender }}"
+
+mode: queued
+max: 10

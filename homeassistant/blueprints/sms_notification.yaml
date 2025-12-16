@@ -1,0 +1,60 @@
+blueprint:
+  name: 短信转发器 - 收到短信通知
+  description: 当短信转发器收到短信时，发送通知到手机或其他设备
+  domain: automation
+  
+  input:
+    mqtt_topic:
+      name: MQTT 主题
+      description: "短信接收主题，格式：{前缀}/{设备ID}/sms/received，例如 sms/a1b2c3/sms/received"
+      default: "sms/a1b2c3/sms/received"
+      selector:
+        text:
+    
+    notify_service:
+      name: 通知服务
+      description: 选择要发送通知的服务（如 notify.mobile_app_xxx）
+      selector:
+        text:
+      default: "notify.mobile_app_iphone"
+    
+    notification_title:
+      name: 通知标题
+      description: 通知的标题模板，可用 {{ sender }} 显示发送者
+      default: "收到短信: {{ sender }}"
+      selector:
+        text:
+    
+    filter_sender:
+      name: 过滤发送者（可选）
+      description: 只有指定号码发来的短信才通知，留空则全部通知。多个号码用逗号分隔
+      default: ""
+      selector:
+        text:
+
+trigger:
+  - platform: mqtt
+    topic: !input mqtt_topic
+
+condition:
+  - condition: template
+    value_template: >-
+      {% set filter = states('input_text.sms_filter_sender') | default('') %}
+      {% if filter == '' %}
+        true
+      {% else %}
+        {{ trigger.payload_json.sender in filter.split(',') }}
+      {% endif %}
+
+action:
+  - service: !input notify_service
+    data:
+      title: "{{ trigger.payload_json.sender }}"
+      message: "{{ trigger.payload_json.message }}"
+      data:
+        push:
+          sound: default
+        tag: "sms_{{ trigger.payload_json.sender }}"
+
+mode: queued
+max: 10

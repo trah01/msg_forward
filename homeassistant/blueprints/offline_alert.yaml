@@ -1,0 +1,48 @@
+blueprint:
+  name: 短信转发器 - 设备离线告警
+  description: 当短信转发器离线时发送通知
+  domain: automation
+  
+  input:
+    device_status_entity:
+      name: 设备状态实体
+      description: 短信转发器的在线状态二进制传感器
+      selector:
+        entity:
+          domain: binary_sensor
+    
+    notify_service:
+      name: 通知服务
+      description: 选择要发送通知的服务
+      selector:
+        text:
+      default: "notify.mobile_app_iphone"
+    
+    offline_duration:
+      name: 离线多久后告警
+      description: 设备离线超过多少分钟后发送通知
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 60
+          unit_of_measurement: "分钟"
+
+trigger:
+  - platform: state
+    entity_id: !input device_status_entity
+    to: "off"
+    for:
+      minutes: !input offline_duration
+
+action:
+  - service: !input notify_service
+    data:
+      title: "⚠️ 短信转发器离线"
+      message: "短信转发器已离线 {{ states('input_number.sms_offline_duration') | default(5) }} 分钟，请检查设备状态"
+      data:
+        push:
+          sound: default
+          interruption-level: time-sensitive
+
+mode: single

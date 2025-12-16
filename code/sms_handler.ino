@@ -2,6 +2,90 @@
  * sms_handler.ino - 短信处理函数实现
  */
 
+// 清理短信内容（去除自动填充标识符）
+String cleanSmsContent(const String& text) {
+  String cleaned = text;
+  
+  // 去除开头的 <#> 标记
+  if (cleaned.startsWith("<#>")) {
+    cleaned = cleaned.substring(3);
+    cleaned.trim();
+  }
+  
+  // 去除末尾的 hash 标识（以 / 开头的随机字符串）
+  int slashIdx = cleaned.lastIndexOf('/');
+  if (slashIdx > 0) {
+    String suffix = cleaned.substring(slashIdx + 1);
+    suffix.trim();
+    // 检查是否是自动填充标识（全是字母数字，长度在6-15之间）
+    bool isAutoFillCode = suffix.length() >= 6 && suffix.length() <= 15;
+    for (unsigned int i = 0; i < suffix.length() && isAutoFillCode; i++) {
+      char c = suffix.charAt(i);
+      if (!isalnum(c)) isAutoFillCode = false;
+    }
+    if (isAutoFillCode) {
+      cleaned = cleaned.substring(0, slashIdx);
+      cleaned.trim();
+    }
+  }
+  
+  // 去除末尾单独的随机字符串（换行后的字母数字串）
+  int lastNewline = cleaned.lastIndexOf('\n');
+  if (lastNewline > 0) {
+    String lastLine = cleaned.substring(lastNewline + 1);
+    lastLine.trim();
+    // 检查是否是自动填充标识
+    bool isAutoFillCode = lastLine.length() >= 6 && lastLine.length() <= 15;
+    for (unsigned int i = 0; i < lastLine.length() && isAutoFillCode; i++) {
+      char c = lastLine.charAt(i);
+      if (!isalnum(c)) isAutoFillCode = false;
+    }
+    if (isAutoFillCode) {
+      cleaned = cleaned.substring(0, lastNewline);
+      cleaned.trim();
+    }
+  }
+  
+  return cleaned;
+}
+
+// 格式化时间戳（从 PDU 格式转为可读格式）
+// 输入: 25121615142600 (YYMMDDHHMMSSZZ)
+// 输出: 2025-12-16 15:14:26
+String formatTimestamp(const String& pduTimestamp) {
+  if (pduTimestamp.length() < 12) return pduTimestamp;
+  
+  String year = "20" + pduTimestamp.substring(0, 2);
+  String month = pduTimestamp.substring(2, 4);
+  String day = pduTimestamp.substring(4, 6);
+  String hour = pduTimestamp.substring(6, 8);
+  String minute = pduTimestamp.substring(8, 10);
+  String second = pduTimestamp.substring(10, 12);
+  
+  return year + "-" + month + "-" + day + " " + hour + ":" + minute + ":" + second;
+}
+
+// 提取验证码（用于邮件主题）
+String extractVerifyCode(const String& text) {
+  // 查找4-8位连续数字
+  String code = "";
+  for (unsigned int i = 0; i < text.length(); i++) {
+    char c = text.charAt(i);
+    if (c >= '0' && c <= '9') {
+      code += c;
+    } else if (code.length() >= 4 && code.length() <= 8) {
+      break;  // 找到了有效验证码
+    } else {
+      code = "";  // 重新开始
+    }
+  }
+  // 最后检查
+  if (code.length() >= 4 && code.length() <= 8) {
+    return code;
+  }
+  return "";
+}
+
 // 初始化长短信缓存
 void initConcatBuffer() {
   for (int i = 0; i < MAX_CONCAT_MESSAGES; i++) {
@@ -192,23 +276,42 @@ bool sendSMS(const char* phoneNumber, const char* message) {
 
 // 处理最终的短信内容（管理员命令检查和转发）
 void processSmsContent(const char* sender, const char* text, const char* timestamp) {
+  // 清理短信内容和格式化时间
+  String cleanedText = cleanSmsContent(String(text));
+  String formattedTime = formatTimestamp(String(timestamp));
+  String verifyCode = extractVerifyCode(cleanedText);
+  
   Serial.println("=== 处理短信内容 ===");
   Serial.println("发送者: " + String(sender));
-  Serial.println("时间戳: " + String(timestamp));
-  Serial.println("内容: " + String(text));
+  Serial.println("时间: " + formattedTime);
+  Serial.println("内容: " + cleanedText);
+  if (verifyCode.length() > 0) {
+    Serial.println("验证码: " + verifyCode);
+  }
   Serial.println("====================");
 
-  // 发送通知 http（推送到所有启用的通道）
-  sendSMSToServer(sender, text, timestamp);
+  // 发送通知 http（推送到所有启用的通道，使用清理后的内容）
+  sendSMSToServer(sender, cleanedText.c_str(), formattedTime.c_str());
   
-  // 发送 MQTT 通知
-  #ifdef ENABLE_MQTT
-  publishMqttSmsReceived(sender, text, timestamp);
-  #endif
+  // 发送 MQTT 通知（使用清理后的内容）
+  publishMqttSmsReceived(sender, cleanedText.c_str(), formattedTime.c_str());
   
-  // 发送通知邮件
-  String subject = ""; subject+="短信";subject+=sender;subject+=",";subject+=text;
-  String body = ""; body+="来自：";body+=sender;body+="，时间：";body+=timestamp;body+="，内容：";body+=text;
+  // 发送通知邮件（优化主题格式）
+  String subject;
+  if (verifyCode.length() > 0) {
+    // 有验证码时，主题显示验证码
+    subject = "[" + verifyCode + "] " + String(sender);
+  } else {
+    // 无验证码时，显示发送者和内容摘要
+    String preview = cleanedText.substring(0, 30);
+    if (cleanedText.length() > 30) preview += "...";
+    subject = String(sender) + ": " + preview;
+  }
+  
+  String body = "发送者: " + String(sender) + "\n";
+  body += "时间: " + formattedTime + "\n";
+  body += "内容:\n" + cleanedText;
+  
   sendEmailNotification(subject.c_str(), body.c_str());
 }
 

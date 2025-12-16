@@ -261,13 +261,24 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
 // 发布收到短信通知
 void publishMqttSmsReceived(const char* sender, const char* message, const char* timestamp) {
-  if (!config.mqttEnabled || !mqttClient.connected()) return;
+  if (!config.mqttEnabled) {
+    return;
+  }
+  
+  if (!mqttClient.connected()) {
+    Serial.println("MQTT未连接，跳过短信推送");
+    return;
+  }
   
   // 仅控制模式下不推送短信内容
   if (config.mqttControlOnly) {
     Serial.println("MQTT仅控制模式，跳过短信推送");
     return;
   }
+  
+  Serial.println("MQTT推送短信...");
+  Serial.println(" 主题: " + mqttTopicSmsReceived);
+  Serial.println(" 发送者: " + String(sender));
   
   String json = "{";
   json += "\"sender\":\"" + jsonEscape(String(sender)) + "\",";
@@ -276,8 +287,12 @@ void publishMqttSmsReceived(const char* sender, const char* message, const char*
   json += "\"device\":\"" + mqttDeviceId + "\"";
   json += "}";
   
-  mqttClient.publish(mqttTopicSmsReceived.c_str(), json.c_str());
-  Serial.println("MQTT发布收到短信通知");
+  bool success = mqttClient.publish(mqttTopicSmsReceived.c_str(), json.c_str());
+  if (success) {
+    Serial.println("MQTT短信推送完成");
+  } else {
+    Serial.println("MQTT短信推送失败");
+  }
 }
 
 // 发布发送短信结果
@@ -355,24 +370,41 @@ void publishMqttDeviceStatus() {
   int rsrpDbm = (rsrp != 255 && rsrp <= 97) ? (rsrp - 141) : -999;
   int rsrqDb = (rsrq != 255 && rsrq <= 34) ? ((rsrq / 2) - 20) : -999;
   
-  // 获取网络注册状态
-  String cregResp = sendATCommand("AT+CREG?", 2000);
-  int regStatus = 0;
-  int cregIdx = cregResp.indexOf("+CREG:");
-  if (cregIdx >= 0) {
-    int comma = cregResp.indexOf(',', cregIdx);
-    if (comma > 0) {
-      regStatus = cregResp.substring(comma + 1, comma + 2).toInt();
-    }
+  // WiFi 信号评价
+  int wifiRssi = WiFi.RSSI();
+  String wifiStatus = "未知";
+  if (wifiRssi >= -50) wifiStatus = "极好";
+  else if (wifiRssi >= -60) wifiStatus = "很好";
+  else if (wifiRssi >= -70) wifiStatus = "良好";
+  else if (wifiRssi >= -80) wifiStatus = "一般";
+  else if (wifiRssi >= -90) wifiStatus = "较弱";
+  else wifiStatus = "很差";
+  
+  // 4G 信号评价
+  String lteStatus = "未知";
+  if (rsrpDbm != -999) {
+    if (rsrpDbm >= -80) lteStatus = "极好";
+    else if (rsrpDbm >= -90) lteStatus = "良好";
+    else if (rsrpDbm >= -100) lteStatus = "一般";
+    else if (rsrpDbm >= -110) lteStatus = "较弱";
+    else lteStatus = "很差";
   }
   
-  String regStatusStr = "unknown";
-  switch(regStatus) {
-    case 1: regStatusStr = "registered_home"; break;
-    case 5: regStatusStr = "registered_roaming"; break;
-    case 2: regStatusStr = "searching"; break;
-    case 3: regStatusStr = "denied"; break;
-    case 0: regStatusStr = "not_registered"; break;
+  // 获取 APN
+  String apn = "";
+  String cgdcontResp = sendATCommand("AT+CGDCONT?", 2000);
+  int cgdIdx = cgdcontResp.indexOf("+CGDCONT:");
+  if (cgdIdx >= 0) {
+    int idx0 = cgdcontResp.indexOf(",\"", cgdIdx);
+    if (idx0 >= 0) {
+      idx0 = cgdcontResp.indexOf(",\"", idx0 + 2);
+      if (idx0 >= 0) {
+        int endIdx0 = cgdcontResp.indexOf("\"", idx0 + 2);
+        if (endIdx0 > idx0) {
+          apn = cgdcontResp.substring(idx0 + 2, endIdx0);
+        }
+      }
+    }
   }
   
   // 构建 JSON
@@ -380,13 +412,15 @@ void publishMqttDeviceStatus() {
   json += "\"status\":\"online\",";
   json += "\"device\":\"" + mqttDeviceId + "\",";
   json += "\"ip\":\"" + WiFi.localIP().toString() + "\",";
-  json += "\"wifi_rssi\":" + String(WiFi.RSSI()) + ",";
+  json += "\"wifi_rssi\":" + String(wifiRssi) + ",";
+  json += "\"wifi_status\":\"" + wifiStatus + "\",";
   json += "\"wifi_ssid\":\"" + WiFi.SSID() + "\",";
   json += "\"uptime\":" + String(millis() / 1000) + ",";
   json += "\"free_heap\":" + String(ESP.getFreeHeap()) + ",";
   json += "\"lte_rsrp\":" + String(rsrpDbm) + ",";
   json += "\"lte_rsrq\":" + String(rsrqDb) + ",";
-  json += "\"network_status\":\"" + regStatusStr + "\"";
+  json += "\"lte_status\":\"" + lteStatus + "\",";
+  json += "\"apn\":\"" + apn + "\"";
   json += "}";
   
   mqttClient.publish(mqttTopicStatus.c_str(), json.c_str(), true);
