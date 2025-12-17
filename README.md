@@ -1,10 +1,10 @@
 # 低成本短信转发器
 
 用低成本硬件实现短信自动转发，只需要提供供电和WiFi即可，收到短信后自动推送到手机/邮箱/智能家居，再也不怕错过验证码！
+虽然芯片标记的全网通，该项目可能不支持电信卡，使用电信卡会连不上网，具体请自测。
 
-> 该项目可能不支持电信卡，使用电信卡会连不上网，我也不懂为啥，具体请自测。
-
-本项目基于 [sms_forwarding](https://github.com/chenxuuu/sms_forwarding) 二次开发。
+> 本项目基于 chenxuuu/sms_forwarding 进行二次开发，原项目采用 MIT 协议。本项目保留原作者版权声明，并在此基础上增加/改动了功能。
+原项目固件的视频教程：[B站视频](https://www.bilibili.com/video/BV1cSmABYEiX),少部分不适用于当前修改版，大部分通用。
 
 **删除的功能：** PushPlus、Server酱（可用自定义 Webhook 替代）
 
@@ -14,13 +14,12 @@
 - 全新现代化 Web 界面
 - 完整的 MQTT 支持，可接入 Home Assistant，提供传感器配置和自动化蓝图
 
-> 原项目固件的视频教程：[B站视频](https://www.bilibili.com/video/BV1cSmABYEiX),少部分不适用于当前修改版，大部分通用。
+
 
 <img src="assets/homepage.png" width="600" />
 
 ## 更新日志
 
-### v2.0 (2025-12)
 - ✨ 新增 Telegram Bot 推送
 - ✨ 新增企业微信机器人推送  
 - ✨ 新增钉钉机器人推送
@@ -35,10 +34,6 @@
 - 🎨 概览页显示完整设备状态
 - 🐛 修复多处 bug，优化稳定性
 
-### v1.0 (原版)
-- 基础短信转发功能
-- MQTT 接入
-- 网页配置界面
 
 ## 功能特点
 
@@ -89,7 +84,9 @@
 ## 接线方式
 #### 注意，rx和tx的针脚和 GPIO3  GPIO4不是垂直对应,要掰弯针脚，我是建议买焊接好的esp32c3，然后使用杜邦线连接，然后ML307R的 EN 要和 5V(VCC) 连接,否则无法正常运行
 
-<img src="assets/connect.png" width="400" />
+| 接线示意图 | 实物连接图 |
+|:---:|:---:|
+| <img src="assets/connect.png" width="400" /> | <img src="assets/shiwu.png" width="400" /> |
 ```
 
 简单说就是：
