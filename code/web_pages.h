@@ -1,11 +1,6 @@
 #ifndef WEB_PAGES_H
 #define WEB_PAGES_H
 
-// 尝试引入私有功能模块（如果文件存在）
-#if __has_include("call_forward_private.h")
-  #include "call_forward_private.h"
-#endif
-
 // 現代化 CSS 设计
 const char* commonCss = R"(<style>
 :root{--primary:#6366f1;--primary-dark:#4f46e5;--bg:#f8fafc;--card:#ffffff;--text:#334155;--text-light:#64748b;--border:#e2e8f0;--success:#22c55e;--danger:#ef4444;--warning:#eab308;--info:#3b82f6}
@@ -160,10 +155,6 @@ const char* htmlPage = R"rawliteral(<!DOCTYPE html><html><head><meta charset="UT
     </div>
 
     <div class="sw-row">
-      <span style="font-weight:600;color:#64748b">来电通知</span>
-      <span class="badge %CLIP_CLASS%">%CLIP_STATUS%</span>
-    </div>
-    <div class="sw-row">
       <span style="font-weight:600;color:#64748b">系统看门狗</span>
       <span class="badge b-ok">30秒自动复位</span>
     </div>
@@ -185,25 +176,6 @@ const char* htmlPage = R"rawliteral(<!DOCTYPE html><html><head><meta charset="UT
     <div id="pLog" style="margin-top:8px;font-size:0.85em;color:#64748b;display:none"></div>
   </div>
 
-  <div class="card">
-    <div class="card-t">余额查询 <span class="card-sub">USSD免费</span></div>
-    <div class="fg" style="margin-bottom:8px">
-      <select id="ussdSel" style="padding:10px;width:100%" onchange="ussdChg()">
-        <option value="*100#">giffgaff (*100#)</option>
-        <option value="*100#">中国移动 (*100#)</option>
-        <option value="*100#">中国联通 (*100#)</option>
-        <option value="*102#">中国电信 (*102#)</option>
-        <option value="custom">自定义代码...</option>
-      </select>
-    </div>
-    <div id="ussdCust" style="display:none;margin-bottom:8px">
-      <input id="ussdCode" placeholder="输入USSD代码，如 *100#" style="padding:10px">
-    </div>
-    <button class="btn btn-w" onclick="queryBalance()">查询余额</button>
-    <div id="balLog" style="margin-top:12px;font-size:0.9em;color:#64748b;display:none;padding:10px;background:#f8fafc;border-radius:8px"></div>
-  </div>
-
-%CALL_FORWARD%
 
   <div class="card">
     <div class="card-t" style="color:var(--danger)">危险操作</div>
@@ -313,24 +285,24 @@ const char* htmlPage = R"rawliteral(<!DOCTYPE html><html><head><meta charset="UT
   </details>
 
   <details>
-    <summary>定时任务</summary>
+    <summary>定时任务 <span id="tmBadge" class="badge b-wait" style="margin-left:8px">未启用</span></summary>
     <div class="det-body">
-      <div class="sw-row" onclick="xToggle('tmEn')">
+      <div class="sw-row" onclick="xToggle('tmEn');updTmInfo()">
          <span>启用任务</span>
          <div id="tmEnSw" class="sw"></div>
          <input type="hidden" id="tmEn" name="timerEn" value="%TIMER_EN_VAL%">
       </div>
       <div class="fg"><label>类型 & 间隔(天)</label>
         <div class="grid-2">
-          <select id="tmType" name="timerType" onchange="$('tmSms').style.display=this.value==1?'block':'none'"><option value="0">Ping保活</option><option value="1">发送短信</option></select>
-          <input type="number" id="tmInt" name="timerInterval" min="1">
+          <select id="tmType" name="timerType" onchange="$('tmSms').style.display=this.value==1?'block':'none';updTmInfo()"><option value="0">Ping保活</option><option value="1">发送短信</option></select>
+          <input type="number" id="tmInt" name="timerInterval" min="1" onchange="updTmInfo()">
         </div>
       </div>
       <div id="tmSms" style="display:none">
         <div class="fg"><label>对方号码</label><input id="tmPh" name="timerPhone"></div>
         <div class="fg"><label>短信内容</label><input id="tmMsg" name="timerMessage"></div>
       </div>
-      <div style="color:var(--info);font-size:0.9em;margin-bottom:12px" id="tmInfo"></div>
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px;margin-bottom:12px" id="tmInfo"></div>
       <button type="button" class="btn btn-w" onclick="saveTimer()">仅保存任务设置</button>
     </div>
   </details>
@@ -356,7 +328,40 @@ $('ftList').value=ft.ls;
 if(tm.en){$('tmEnSw').className='sw on';$('tmEn').value='true'}
 $('tmType').value=tm.tp;$('tmInt').value=tm.int;$('tmPh').value=tm.ph;$('tmMsg').value=tm.ms;
 if(tm.tp==1)$('tmSms').style.display='block';
-$('tmInfo').innerText = tm.en ? ('下次执行: '+(tm.rm/86400).toFixed(1)+'天后') : '任务已禁用';
+
+// 更新定时任务信息显示
+function updTmInfo(){
+  var en=$('tmEn').value==='true';
+  var tp=+$('tmType').value;
+  var days=+$('tmInt').value||0;
+  var badge=$('tmBadge');
+  var info=$('tmInfo');
+  var typeName=tp===0?'Ping保活':'发送短信';
+  
+  if(!en){
+    badge.className='badge b-wait';badge.innerText='未启用';
+    info.innerHTML='<div style="color:#64748b">⏸ 定时任务已禁用</div>';
+    return;
+  }
+  badge.className='badge b-ok';badge.innerText=typeName;
+  
+  // 计算剩余时间（天+小时）
+  var rmSec=tm.rm;
+  var rmDays=Math.floor(rmSec/86400);
+  var rmHours=Math.floor((rmSec%86400)/3600);
+  var rmStr=rmDays>0?(rmDays+'天'):'';rmStr+=(rmHours>0?(rmHours+'小时'):'');
+  if(!rmStr)rmStr='即将执行';
+  
+  var html='<div style="font-weight:600;color:#0369a1;margin-bottom:6px">✅ 定时任务已启用</div>';
+  html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.9em">';
+  html+='<div><span style="color:#64748b">任务类型:</span> <b>'+typeName+'</b></div>';
+  html+='<div><span style="color:#64748b">执行间隔:</span> <b>每 '+days+' 天</b></div>';
+  html+='<div><span style="color:#64748b">下次执行:</span> <b>'+rmStr+'后</b></div>';
+  if(tp===1){html+='<div><span style="color:#64748b">发送至:</span> <b>'+($('tmPh').value||'未设置')+'</b></div>';}
+  html+='</div>';
+  info.innerHTML=html;
+}
+updTmInfo();
 
 // 页面切换
 function swTab(n){
@@ -392,7 +397,12 @@ function wfTog(i){
 function upd(i){
   var t=$('tp'+i).value;
   $('cf'+i).style.display=(t=='4')?'block':'none'; // 自定义模板
-  $('tg'+i).style.display=(t=='5')?'block':'none'; // Telegram Chat ID
+  // Telegram(5) 和 钉钉(7) 需要显示 Key1 输入框
+  var showK1=(t=='5'||t=='7');
+  $('k1'+i).style.display=showK1?'block':'none';
+  // 动态更新标签
+  var lbl=$('k1l'+i);
+  if(lbl){lbl.innerText=(t=='5')?'Chat ID':'加签密钥 (可选)';}
 }
 
 // 自动加载函数
@@ -435,24 +445,6 @@ function act(t){
   }
 }
 
-function ussdChg(){
-  var sel=$('ussdSel').value;
-  $('ussdCust').style.display=(sel==='custom')?'block':'none';
-}
-
-function queryBalance(){
-  var sel=$('ussdSel').value;
-  var code=(sel==='custom')?$('ussdCode').value:sel;
-  if(!code||code.length<2){return toast('请输入有效的USSD代码');}
-  var l=$('balLog');l.style.display='block';l.innerHTML='正在查询 '+code+' ，请稍候...';
-  fetch('/query?type=balance&code='+encodeURIComponent(code)).then(r=>r.json()).then(d=>{
-    l.innerHTML=d.message;l.style.color=d.success?'#15803d':'#b91c1c';
-  }).catch(e=>{
-    l.innerText='查询失败: '+e;l.style.color='#b91c1c';
-  });
-}
-
-%CALL_FORWARD_JS%
 
 function loadHist(){
   $('hList').innerHTML='<div style="text-align:center;padding:20px;color:#94a3b8">加载中...</div>';
@@ -493,11 +485,27 @@ function saveTimer(){
 function saveAll(e){
   e.preventDefault();
   toast('正在保存配置...');
-  fetch('/save',{method:'POST',body:new FormData(e.target)})
-  .then(r=>r.text()).then(t=>{
-    toast('保存成功，设备将重启...');
-    setTimeout(()=>location.reload(),3000);
-  }).catch(()=>toast('保存失败'));
+  // 使用 URLSearchParams 而非 FormData（ESP32 处理更稳定）
+  var fd=new FormData(e.target);
+  var params=new URLSearchParams();
+  for(var p of fd.entries()){params.append(p[0],p[1])}
+  fetch('/save',{
+    method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:params.toString()
+  })
+  .then(r=>r.json()).then(d=>{
+    if(d.success){
+      toast('配置已保存');
+      if(d.needRestart && confirm('配置已保存成功！\n\n是否立即重启设备使配置生效？')){
+        toast('设备重启中...');
+        postJ('/restart',{},()=>{});
+        setTimeout(()=>location.reload(),3000);
+      }
+    }else{
+      toast(d.message||'保存失败');
+    }
+  }).catch(e=>{console.error(e);toast('保存失败，请检查网络')});
   return false;
 }
 

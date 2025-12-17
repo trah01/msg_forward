@@ -131,6 +131,10 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       Serial.println("  内容: " + msgRaw);
       
       bool success = sendSMS(phoneRaw.c_str(), msgRaw.c_str());
+      if (success) {
+        stats.smsSent++;
+        saveStats();
+      }
       publishMqttSmsSent(phoneRaw.c_str(), msgRaw.c_str(), success);
     } else {
       Serial.println("短信命令格式错误");

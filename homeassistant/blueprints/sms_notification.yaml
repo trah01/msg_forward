@@ -36,14 +36,16 @@ trigger:
   - platform: mqtt
     topic: !input mqtt_topic
 
+variables:
+  filter_sender: !input filter_sender
+
 condition:
   - condition: template
     value_template: >-
-      {% set filter = states('input_text.sms_filter_sender') | default('') %}
-      {% if filter == '' %}
+      {% if filter_sender == '' %}
         true
       {% else %}
-        {{ trigger.payload_json.sender in filter.split(',') }}
+        {{ trigger.payload_json.sender in filter_sender.split(',') }}
       {% endif %}
 
 action:

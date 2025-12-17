@@ -107,10 +107,6 @@ void handleRoot() {
   }
   html.replace("%MQTT_TOPICS%", mqttTopicsHtml);
   
-  // 来电通知状态
-  html.replace("%CLIP_STATUS%", clipSupported ? "已启用" : "不支持");
-  html.replace("%CLIP_CLASS%", clipSupported ? "b-ok" : "b-warn");
-
   // 1.5 WiFi 网络配置 HTML
   String wifiHtml = "";
   for (int i = 0; i < MAX_WIFI_NETWORKS; i++) {
@@ -130,7 +126,9 @@ void handleRoot() {
     wifiHtml += "</div>";
     wifiHtml += "<div class=\"grid-2\" style=\"margin-top:8px\">";
     wifiHtml += "<div class=\"fg\" style=\"margin-bottom:0\"><label>SSID</label><input name=\"wifi" + idx + "ssid\" value=\"" + config.wifiNetworks[i].ssid + "\" placeholder=\"WiFi名称\"></div>";
-    wifiHtml += "<div class=\"fg\" style=\"margin-bottom:0\"><label>密码</label><input name=\"wifi" + idx + "pass\" type=\"password\" value=\"" + config.wifiNetworks[i].password + "\" placeholder=\"WiFi密码\"></div>";
+    // 密码不回显明文，使用占位符提示
+    String passPlaceholder = config.wifiNetworks[i].password.length() > 0 ? "（已保存，留空则保留）" : "WiFi密码";
+    wifiHtml += "<div class=\"fg\" style=\"margin-bottom:0\"><label>密码</label><input name=\"wifi" + idx + "pass\" type=\"password\" placeholder=\"" + passPlaceholder + "\"></div>";
     wifiHtml += "</div></div>";
   }
   html.replace("%WIFI_NETWORKS%", wifiHtml);
@@ -227,10 +225,13 @@ void handleRoot() {
     channelsHtml += "<option value=\"7\"" + String(config.pushChannels[i].type == PUSH_TYPE_DINGTALK ? " selected" : "") + ">钉钉</option>";
     channelsHtml += "</select></div>";
     
-    channelsHtml += "<div class=\"fg\"><label>URL</label><input name=\"push" + idx + "url\" value=\"" + config.pushChannels[i].url + "\" placeholder=\"http://...\"></div>";
+    channelsHtml += "<div class=\"fg\"><label>URL</label><input name=\"push" + idx + "url\" value=\"" + config.pushChannels[i].url + "\" placeholder=\"https://...\"></div>";
     
-    // Telegram Chat ID (显示条件: type == 5)
-    channelsHtml += "<div id=\"tg" + idx + "\" style=\"display:" + (config.pushChannels[i].type == PUSH_TYPE_TELEGRAM ? "block" : "none") + "\"><div class=\"fg\"><label>Chat ID</label><input name=\"push" + idx + "k1\" value=\"" + config.pushChannels[i].key1 + "\" placeholder=\"如 123456789\"></div></div>";
+    // Key1 输入框 (Telegram=Chat ID, 钉钉=加签密钥)
+    bool showK1 = (config.pushChannels[i].type == PUSH_TYPE_TELEGRAM || config.pushChannels[i].type == PUSH_TYPE_DINGTALK);
+    String k1Label = (config.pushChannels[i].type == PUSH_TYPE_TELEGRAM) ? "Chat ID" : "加签密钥 (可选)";
+    String k1Hint = (config.pushChannels[i].type == PUSH_TYPE_TELEGRAM) ? "如 123456789" : "SEC开头的密钥";
+    channelsHtml += "<div id=\"k1" + idx + "\" style=\"display:" + (showK1 ? "block" : "none") + "\"><div class=\"fg\"><label id=\"k1l" + idx + "\">" + k1Label + "</label><input name=\"push" + idx + "k1\" value=\"" + config.pushChannels[i].key1 + "\" placeholder=\"" + k1Hint + "\"></div></div>";
     
     // 自定义模板 Body (显示条件: type == 4)
     channelsHtml += "<div id=\"cf" + idx + "\" style=\"display:" + (config.pushChannels[i].type == PUSH_TYPE_CUSTOM ? "block" : "none") + "\"><div class=\"fg\"><label>Body模板</label><textarea name=\"push" + idx + "body\" rows=\"3\">" + config.pushChannels[i].customBody + "</textarea></div></div>";
@@ -239,14 +240,6 @@ void handleRoot() {
   }
   html.replace("%PUSH_CHANNELS%", channelsHtml);
   
-  // 8. 呼叫转移私有功能模块 (条件编译)
-  #ifdef CALL_FORWARD_ENABLED
-    html.replace("%CALL_FORWARD%", callForwardHtml);
-    html.replace("%CALL_FORWARD_JS%", callForwardJs);
-  #else
-    html.replace("%CALL_FORWARD%", "");
-    html.replace("%CALL_FORWARD_JS%", "");
-  #endif
   
   server.send(200, "text/html", html);
 }
@@ -264,14 +257,35 @@ void handleSave() {
   
   // 喂狗防止超时
   esp_task_wdt_reset();
+  yield();
   
   // WiFi 网络配置
   for (int i = 0; i < MAX_WIFI_NETWORKS; i++) {
     String prefix = "wifi" + String(i);
-    config.wifiNetworks[i].ssid = server.arg(prefix + "ssid");
-    config.wifiNetworks[i].password = server.arg(prefix + "pass");
-    config.wifiNetworks[i].enabled = server.arg(prefix + "en") == "true";
+    String newSsid = server.arg(prefix + "ssid");
+    String newPass = server.arg(prefix + "pass");
+    String newEn = server.arg(prefix + "en");
+    
+    // 只有当 SSID 非空时才更新（避免清空已保存的配置）
+    if (newSsid.length() > 0) {
+      config.wifiNetworks[i].ssid = newSsid;
+    }
+    // 密码为空时保留原密码
+    if (newPass.length() > 0) {
+      config.wifiNetworks[i].password = newPass;
+    }
+    // enabled 状态始终更新
+    config.wifiNetworks[i].enabled = (newEn == "true");
+    
+    // 调试输出
+    Serial.printf("WiFi%d: SSID=%s, Pass=%s, En=%d\n", 
+      i, config.wifiNetworks[i].ssid.c_str(), 
+      config.wifiNetworks[i].password.length() > 0 ? "***" : "(empty)",
+      config.wifiNetworks[i].enabled);
   }
+  
+  esp_task_wdt_reset();
+  yield();
   
   // 获取新的 Web 账号密码
   String newWebUser = server.arg("webUser");
@@ -290,6 +304,9 @@ void handleSave() {
   config.smtpPass = server.arg("smtpPass");
   config.smtpSendTo = server.arg("smtpSendTo");
   
+  esp_task_wdt_reset();
+  yield();
+  
   // 推送通道配置
   for (int i = 0; i < MAX_PUSH_CHANNELS; i++) {
     String prefix = "push" + String(i);
@@ -300,6 +317,9 @@ void handleSave() {
     config.pushChannels[i].key1 = server.arg(prefix + "k1"); // Telegram Chat ID
     config.pushChannels[i].customBody = server.arg(prefix + "body");
   }
+  
+  esp_task_wdt_reset();
+  yield();
   
   // MQTT 配置
   config.mqttEnabled = server.arg("mqttEn") == "true";
@@ -313,6 +333,9 @@ void handleSave() {
   config.mqttControlOnly = server.arg("mqttCtrlOnly") == "on" || server.arg("mqttCtrlOnly") == "true"; 
   // 注意：Checkbox 如果是原生的，选中发 "on"，没选中不发。如果是 Hidden input wrapper 则发 "true"/"false"
   // 新前端 mqttCtrlOnly 用的是原生 checkbox (在 check-row 里)
+  
+  esp_task_wdt_reset();
+  yield();
   
   // 黑白名单配置 (全量保存时也更新)
   if (server.hasArg("filterEn")) { // 只有当前端提交了这些字段才更新
@@ -336,28 +359,46 @@ void handleSave() {
   
   // 喂狗并保存配置
   esp_task_wdt_reset();
+  yield();
   saveConfig();
   esp_task_wdt_reset();
+  yield();
   configValid = isConfigValid();
   
-  // 先发送响应
-  String json = "{\"success\":true,\"message\":\"配置已保存\"}";
+  // 返回成功响应，让前端询问用户是否重启
+  String json = "{\"success\":true,\"message\":\"配置已保存\",\"needRestart\":true}";
   server.send(200, "application/json", json);
-  
-  // 重启 MQTT (如果启用)
-  if (config.mqttEnabled) {
-      mqttReconnect();
-  } else {
-      mqttClient.disconnect();
-  }
 }
 
 // 处理发送短信请求
 void handleSendSms() {
   if (!checkAuth()) return;
   
-  String phone = server.arg("phone");
-  String content = server.arg("content");
+  // 解析 JSON body (前端 postJ 发送 JSON 格式)
+  String body = server.arg("plain");
+  String phone = "";
+  String content = "";
+  
+  // 简易 JSON 解析
+  int phoneIdx = body.indexOf("\"phone\"");
+  if (phoneIdx >= 0) {
+    int colonIdx = body.indexOf(":", phoneIdx);
+    int startQuote = body.indexOf("\"", colonIdx);
+    int endQuote = body.indexOf("\"", startQuote + 1);
+    if (startQuote >= 0 && endQuote > startQuote) {
+      phone = body.substring(startQuote + 1, endQuote);
+    }
+  }
+  
+  int contentIdx = body.indexOf("\"content\"");
+  if (contentIdx >= 0) {
+    int colonIdx = body.indexOf(":", contentIdx);
+    int startQuote = body.indexOf("\"", colonIdx);
+    int endQuote = body.indexOf("\"", startQuote + 1);
+    if (startQuote >= 0 && endQuote > startQuote) {
+      content = body.substring(startQuote + 1, endQuote);
+    }
+  }
   
   phone.trim();
   content.trim();
@@ -375,6 +416,10 @@ void handleSendSms() {
     Serial.println("短信内容: " + content);
     
     success = sendSMS(phone.c_str(), content.c_str());
+    if (success) {
+      stats.smsSent++;
+      saveStats();
+    }
     resultMsg = success ? "短信发送成功！" : "短信发送失败，请检查模组状态";
   }
   

@@ -12,7 +12,7 @@
 #      packages:
 #        sms_forwarder: !include packages/sms_forwarder.yaml
 #
-# 3. 把下面的 "123456" 替换成你的设备 ID（在短信转发器网页查看）
+# 3. 把下面的 "a1b2c3" 替换成你的设备 ID（在短信转发器网页查看）
 #
 # 4. 把 "sms" 替换成你设置的主题前缀（如果有修改的话）
 #
@@ -25,14 +25,14 @@ mqtt:
     # 设备在线状态
     - name: "短信转发器状态"
       unique_id: sms_forwarder_status
-      state_topic: "sms/123456/status"
+      state_topic: "sms/a1b2c3/status"
       value_template: "{{ value_json.status }}"
       icon: mdi:message-text
       
     # WiFi 信号强度
     - name: "短信转发器 WiFi 信号"
       unique_id: sms_forwarder_wifi
-      state_topic: "sms/123456/status"
+      state_topic: "sms/a1b2c3/status"
       value_template: >-
         {% set rssi = value_json.wifi_rssi | int(-999) %}
         {% set status = value_json.wifi_status | default('未知') %}
@@ -44,7 +44,7 @@ mqtt:
     # 4G 信号强度
     - name: "短信转发器 4G 信号"
       unique_id: sms_forwarder_lte
-      state_topic: "sms/123456/status"
+      state_topic: "sms/a1b2c3/status"
       value_template: >-
         {% set rsrp = value_json.lte_rsrp | int(-999) %}
         {% set status = value_json.lte_status | default('未知') %}
@@ -56,21 +56,21 @@ mqtt:
     # APN
     - name: "短信转发器 APN"
       unique_id: sms_forwarder_apn
-      state_topic: "sms/123456/status"
+      state_topic: "sms/a1b2c3/status"
       value_template: "{{ value_json.apn | default('未知') }}"
       icon: mdi:access-point-network
       
     # 设备 IP 地址
     - name: "短信转发器 IP"
       unique_id: sms_forwarder_ip
-      state_topic: "sms/123456/status"
+      state_topic: "sms/a1b2c3/status"
       value_template: "{{ value_json.ip }}"
       icon: mdi:ip-network
       
     # 运行时间
     - name: "短信转发器运行时间"
       unique_id: sms_forwarder_uptime
-      state_topic: "sms/123456/status"
+      state_topic: "sms/a1b2c3/status"
       value_template: "{{ (value_json.uptime | int / 3600) | round(1) }}"
       unit_of_measurement: "小时"
       icon: mdi:clock-outline
@@ -78,7 +78,7 @@ mqtt:
     # 最近收到的短信 - 发送者
     - name: "最近短信发送者"
       unique_id: sms_forwarder_last_sender
-      state_topic: "sms/123456/sms/received"
+      state_topic: "sms/a1b2c3/sms/received"
       value_template: "{{ value_json.sender }}"
       icon: mdi:account
       
@@ -86,7 +86,7 @@ mqtt:
     # 注意: 状态值有 255 字符限制，完整内容存储在 message 属性中
     - name: "最近短信内容"
       unique_id: sms_forwarder_last_message
-      state_topic: "sms/123456/sms/received"
+      state_topic: "sms/a1b2c3/sms/received"
       value_template: >-
         {% set msg = value_json.message | default('') %}
         {% if msg | length > 50 %}
@@ -95,7 +95,7 @@ mqtt:
           {{ msg }}
         {% endif %}
       # 完整短信内容存储在属性中，支持换行显示
-      json_attributes_topic: "sms/123456/sms/received"
+      json_attributes_topic: "sms/a1b2c3/sms/received"
       json_attributes_template: >-
         {
           "message": {{ value_json.message | default('') | tojson }},
@@ -104,18 +104,11 @@ mqtt:
         }
       icon: mdi:message-text
       
-    # 最近来电号码
-    - name: "最近来电号码"
-      unique_id: sms_forwarder_last_caller
-      state_topic: "sms/123456/call"
-      value_template: "{{ value_json.caller }}"
-      icon: mdi:phone-incoming
-
   # 二进制传感器 - 在线状态
   binary_sensor:
     - name: "短信转发器在线"
       unique_id: sms_forwarder_online
-      state_topic: "sms/123456/status"
+      state_topic: "sms/a1b2c3/status"
       value_template: "{{ value_json.status }}"
       payload_on: "online"
       payload_off: "offline"
@@ -127,7 +120,7 @@ mqtt:
     # 重启设备
     - name: "短信转发器重启"
       unique_id: sms_forwarder_restart
-      command_topic: "sms/123456/cmd"
+      command_topic: "sms/a1b2c3/cmd"
       payload_press: '{"action":"restart"}'
       icon: mdi:restart
 
@@ -160,3 +153,57 @@ template:
           time: "{{ state_attr('sensor.zui_jin_duan_xin_nei_rong', 'time') }}"
           message: "{{ state_attr('sensor.zui_jin_duan_xin_nei_rong', 'message') }}"
         icon: mdi:message-text-outline
+
+# ===========================================
+# 发送短信功能
+# ===========================================
+
+# 输入框 - 发送短信
+input_text:
+  sms_phone:
+    name: "短信接收号码"
+    icon: mdi:phone
+    max: 20
+  sms_content:
+    name: "短信内容"
+    icon: mdi:message-text
+    max: 500
+
+# 脚本 - 发送短信
+script:
+  send_sms:
+    alias: "发送短信"
+    icon: mdi:message-arrow-right
+    sequence:
+      - service: mqtt.publish
+        data:
+          topic: "sms/a1b2c3/sms/send"
+          payload_template: >-
+            {"phone":"{{ states('input_text.sms_phone') }}","message":"{{ states('input_text.sms_content') }}"}
+      - service: persistent_notification.create
+        data:
+          title: "短信已发送"
+          message: >-
+            发送到: {{ states('input_text.sms_phone') }}
+            内容: {{ states('input_text.sms_content') }}
+
+# ===========================================
+# Lovelace 卡片配置示例（发送短信）
+# ===========================================
+# 
+# type: vertical-stack
+# cards:
+#   - type: entities
+#     title: 📤 发送短信
+#     entities:
+#       - entity: input_text.sms_phone
+#         name: 接收号码
+#       - entity: input_text.sms_content
+#         name: 短信内容
+#   - type: button
+#     name: 发送短信
+#     icon: mdi:send
+#     tap_action:
+#       action: call-service
+#       service: script.send_sms
+

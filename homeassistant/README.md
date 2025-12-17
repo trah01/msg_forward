@@ -13,7 +13,7 @@
 1. ✅ Home Assistant 已安装并正常运行
 2. ✅ Home Assistant 已配置好 MQTT 集成（设置 → 设备与服务 → 添加集成 → MQTT）
 3. ✅ 短信转发器已配置好 MQTT 并连接成功（网页显示"MQTT 已连接"）
-4. ✅ 知道你的设备 ID（在短信转发器网页顶部显示，如 `sms/40a27c/`）
+4. ✅ 知道你的设备 ID（在短信转发器网页顶部显示，如 `sms/a1b2c3/`）
 
 ---
 
@@ -190,22 +190,11 @@ content: |
 ```yaml
 service: mqtt.publish
 data:
-  topic: "sms/40a27c/sms/send"
+  topic: "sms/a1b2c3/sms/send"
   payload: '{"phone":"13800138000","message":"测试短信"}'
 ```
 
-把 `40a27c` 换成你的设备 ID，`13800138000` 换成目标手机号。
-
-### 方法二：直接调用服务
-
-在 **开发者工具 → 服务** 中：
-
-```yaml
-service: mqtt.publish
-data:
-  topic: "sms/40a27c/sms/send"
-  payload: '{"phone":"13800138000","message":"测试短信"}'
-```
+把 `a1b2c3` 换成你的设备 ID，`13800138000` 换成目标手机号。
 
 ### 方法三：在自动化中发送
 
@@ -221,7 +210,7 @@ automation:
     action:
       - service: mqtt.publish
         data:
-          topic: "sms/40a27c/sms/send"
+          topic: "sms/a1b2c3/sms/send"
           payload: '{"phone":"13800138000","message":"有人按门铃了！"}'
 ```
 

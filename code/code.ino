@@ -53,7 +53,6 @@ SMTPClient smtp(ssl_client);
 WebServer server(80);
 
 bool configValid = false;
-bool clipSupported = false;  // 来电显示是否支持
 unsigned long lastPrintTime = 0;
 unsigned long lastTimerExec = 0;
 unsigned long timerIntervalSec = 0;  // 使用秒避免溢出（支持到 136 年）
@@ -192,15 +191,7 @@ void setup() {
   }
   if (retryCount < 30) Serial.println("网络已附着");
   
-  // 开启来电显示 (CLIP) - 可选功能，部分模组不支持
-  Serial.print("尝试开启来电显示(AT+CLIP)... ");
-  if (sendATandWaitOK("AT+CLIP=1", 2000)) {
-    clipSupported = true;
-    Serial.println("成功");
-  } else {
-    clipSupported = false;
-    Serial.println("不支持，跳过");
-  }
+
   Serial.println("模组初始化完成");
   digitalWrite(LED_BUILTIN, LOW);
   
@@ -260,6 +251,7 @@ void loop() {
       } else if (config.timerType == 1 && config.timerPhone.length() > 0) {
         sendSMS(config.timerPhone.c_str(), config.timerMessage.c_str());
         stats.smsSent++;
+        saveStats();
         publishMqttSmsSent(config.timerPhone.c_str(), config.timerMessage.c_str(), true);
       }
     }

@@ -35,11 +35,14 @@ trigger:
     for:
       minutes: !input offline_duration
 
+variables:
+  offline_mins: !input offline_duration
+
 action:
   - service: !input notify_service
     data:
       title: "⚠️ 短信转发器离线"
-      message: "短信转发器已离线 {{ states('input_number.sms_offline_duration') | default(5) }} 分钟，请检查设备状态"
+      message: "短信转发器已离线 {{ offline_mins }} 分钟，请检查设备状态"
       data:
         push:
           sound: default

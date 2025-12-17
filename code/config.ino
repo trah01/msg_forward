@@ -11,13 +11,20 @@ Statistics stats = {0, 0, 0, 0, 0};
 void saveConfig() {
   preferences.begin("sms_config", false);
   
+  // 喂狗防止超时
+  esp_task_wdt_reset();
+  yield();
+  
   // 保存 WiFi 配置
   for (int i = 0; i < MAX_WIFI_NETWORKS; i++) {
     String prefix = "wifi" + String(i);
     preferences.putString((prefix + "ssid").c_str(), config.wifiNetworks[i].ssid);
     preferences.putString((prefix + "pass").c_str(), config.wifiNetworks[i].password);
     preferences.putBool((prefix + "en").c_str(), config.wifiNetworks[i].enabled);
+    yield();  // 让出 CPU
   }
+  
+  esp_task_wdt_reset();
   
   preferences.putString("smtpServer", config.smtpServer);
   preferences.putInt("smtpPort", config.smtpPort);
@@ -27,6 +34,9 @@ void saveConfig() {
   preferences.putBool("smtpEn", config.emailEnabled);
   preferences.putString("webUser", config.webUser);
   preferences.putString("webPass", config.webPass);
+  
+  esp_task_wdt_reset();
+  yield();
   
   // 保存推送通道配置
   for (int i = 0; i < MAX_PUSH_CHANNELS; i++) {
@@ -38,6 +48,8 @@ void saveConfig() {
     preferences.putString((prefix + "k1").c_str(), config.pushChannels[i].key1);
     preferences.putString((prefix + "k2").c_str(), config.pushChannels[i].key2);
     preferences.putString((prefix + "body").c_str(), config.pushChannels[i].customBody);
+    esp_task_wdt_reset();
+    yield();  // 让出 CPU
   }
   
   // 保存定时任务配置
@@ -46,6 +58,9 @@ void saveConfig() {
   preferences.putInt("timerInt", config.timerInterval);
   preferences.putString("timerPhone", config.timerPhone);
   preferences.putString("timerMsg", config.timerMessage);
+  
+  esp_task_wdt_reset();
+  yield();
   
   // 保存 MQTT 配置
   preferences.putBool("mqttEn", config.mqttEnabled);
@@ -56,12 +71,15 @@ void saveConfig() {
   preferences.putString("mqttPass", config.mqttPass);
   preferences.putString("mqttPrefix", config.mqttPrefix);
   
+  esp_task_wdt_reset();
+  
   // 保存黑白名单配置
   preferences.putBool("filterEn", config.filterEnabled);
   preferences.putBool("filterWL", config.filterIsWhitelist);
   preferences.putString("filterList", config.filterList);
   
   preferences.end();
+  esp_task_wdt_reset();
   Serial.println("配置已保存");
 }
 
@@ -148,7 +166,12 @@ bool isPushChannelValid(const PushChannel& ch) {
     case PUSH_TYPE_BARK:
     case PUSH_TYPE_GET:
     case PUSH_TYPE_CUSTOM:
+    case PUSH_TYPE_WECOM:
+    case PUSH_TYPE_DINGTALK:
       return ch.url.length() > 0;
+    case PUSH_TYPE_TELEGRAM:
+      // Telegram 需要 URL 和 chat_id (key1)
+      return ch.url.length() > 0 && ch.key1.length() > 0;
     default:
       return false;
   }
@@ -224,6 +247,9 @@ void addSmsToHistory(const char* sender, const char* message, const char* timest
     f.print(line);
     f.close();
   }
+  
+  // 保存统计数据
+  saveStats();
 }
 
 // 获取短信历史（返回 JSON 数组字符串）
@@ -261,9 +287,27 @@ bool isNumberFiltered(const char* number) {
   if (config.filterList.length() == 0) return false;
   
   String num = String(number);
-  // 简单的包含匹配。如果需要更精准，可以在保存时加上分隔符，如 ",num1,num2,"，查找 ",num,"
-  // 这里暂时使用简单子串匹配，如果 filterList 包含该号码则命中
-  bool found = config.filterList.indexOf(num) >= 0;
+  num.trim();
+  
+  // 精确匹配：将 filterList 按逗号分割，逐个比较
+  String list = config.filterList;
+  list.replace(" ", ""); // 移除空格
+  
+  bool found = false;
+  int startIdx = 0;
+  while (startIdx < list.length()) {
+    int commaIdx = list.indexOf(',', startIdx);
+    if (commaIdx < 0) commaIdx = list.length();
+    
+    String item = list.substring(startIdx, commaIdx);
+    item.trim();
+    
+    if (item.length() > 0 && item == num) {
+      found = true;
+      break;
+    }
+    startIdx = commaIdx + 1;
+  }
   
   if (config.filterIsWhitelist) {
     return !found; // 白名单：未找到则过滤
