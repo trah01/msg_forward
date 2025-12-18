@@ -1,29 +1,26 @@
 blueprint:
   name: 短信转发器 - 收到短信通知
-  description: 当短信转发器收到短信时，发送通知到手机或其他设备
+  description: 当短信转发器收到新短信时，转发通知到手机或其他设备
   domain: automation
   
   input:
-    mqtt_topic:
-      name: MQTT 主题
-      description: "短信接收主题，格式：{前缀}/{设备ID}/sms/received，例如 sms/a1b2c3/sms/received"
-      default: "sms/a1b2c3/sms/received"
+    sms_content_entity:
+      name: 短信内容传感器
+      description: 选择短信转发器的"最近短信内容"传感器
       selector:
-        text:
+        entity:
+          domain: sensor
     
     notify_service:
       name: 通知服务
       description: 选择要发送通知的服务（如 notify.mobile_app_xxx）
       selector:
-        text:
+        select:
+          options:
+            - notify.mobile_app_iphone
+            - notify.persistent_notification
+          custom_value: true
       default: "notify.mobile_app_iphone"
-    
-    notification_title:
-      name: 通知标题
-      description: 通知的标题模板，可用 {{ sender }} 显示发送者
-      default: "收到短信: {{ sender }}"
-      selector:
-        text:
     
     filter_sender:
       name: 过滤发送者（可选）
@@ -32,31 +29,41 @@ blueprint:
       selector:
         text:
 
-trigger:
-  - platform: mqtt
-    topic: !input mqtt_topic
-
 variables:
+  sms_entity: !input sms_content_entity
   filter_sender: !input filter_sender
 
+trigger:
+  - platform: state
+    entity_id: !input sms_content_entity
+
 condition:
+  # 忽略状态变为 unavailable/unknown 的情况
+  - condition: template
+    value_template: "{{ trigger.to_state.state not in ['unavailable', 'unknown', 'none', ''] }}"
+  # 发送者过滤
   - condition: template
     value_template: >-
+      {% set sender = state_attr(sms_entity, 'sender') | default('') %}
       {% if filter_sender == '' %}
         true
       {% else %}
-        {{ trigger.payload_json.sender in filter_sender.split(',') }}
+        {{ sender in filter_sender.split(',') }}
       {% endif %}
 
 action:
+  - variables:
+      sender: "{{ state_attr(sms_entity, 'sender') | default('未知') }}"
+      message: "{{ state_attr(sms_entity, 'message') | default(states(sms_entity)) }}"
+      time: "{{ state_attr(sms_entity, 'time') | default('') }}"
   - service: !input notify_service
     data:
-      title: "{{ trigger.payload_json.sender }}"
-      message: "{{ trigger.payload_json.message }}"
+      title: "📱 {{ sender }}"
+      message: "{{ message }}"
       data:
         push:
           sound: default
-        tag: "sms_{{ trigger.payload_json.sender }}"
+        tag: "sms_{{ sender }}"
 
 mode: queued
 max: 10

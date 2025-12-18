@@ -5,17 +5,22 @@ blueprint:
   
   input:
     device_status_entity:
-      name: 设备状态实体
-      description: 短信转发器的在线状态二进制传感器
+      name: 设备在线状态
+      description: 选择短信转发器的"在线"二进制传感器
       selector:
         entity:
           domain: binary_sensor
+          device_class: connectivity
     
     notify_service:
       name: 通知服务
       description: 选择要发送通知的服务
       selector:
-        text:
+        select:
+          options:
+            - notify.mobile_app_iphone
+            - notify.persistent_notification
+          custom_value: true
       default: "notify.mobile_app_iphone"
     
     offline_duration:
@@ -27,6 +32,10 @@ blueprint:
           min: 1
           max: 60
           unit_of_measurement: "分钟"
+          mode: slider
+
+variables:
+  offline_mins: !input offline_duration
 
 trigger:
   - platform: state
@@ -34,9 +43,6 @@ trigger:
     to: "off"
     for:
       minutes: !input offline_duration
-
-variables:
-  offline_mins: !input offline_duration
 
 action:
   - service: !input notify_service

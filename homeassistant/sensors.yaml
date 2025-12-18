@@ -34,7 +34,7 @@ mqtt:
       unique_id: sms_forwarder_wifi
       state_topic: "sms/a1b2c3/status"
       value_template: >-
-        {% set rssi = value_json.wifi_rssi | int(-999) %}
+        {% set rssi = value_json.wifi_rssi | default(-999) | int(-999) %}
         {% set status = value_json.wifi_status | default('未知') %}
         {% if rssi == -999 %}未知
         {% else %}{{ rssi }} dBm ({{ status }})
@@ -46,7 +46,7 @@ mqtt:
       unique_id: sms_forwarder_lte
       state_topic: "sms/a1b2c3/status"
       value_template: >-
-        {% set rsrp = value_json.lte_rsrp | int(-999) %}
+        {% set rsrp = value_json.lte_rsrp | default(-999) | int(-999) %}
         {% set status = value_json.lte_status | default('未知') %}
         {% if rsrp == -999 %}未知
         {% else %}{{ rsrp }} dBm ({{ status }})
@@ -71,7 +71,7 @@ mqtt:
     - name: "短信转发器运行时间"
       unique_id: sms_forwarder_uptime
       state_topic: "sms/a1b2c3/status"
-      value_template: "{{ (value_json.uptime | int / 3600) | round(1) }}"
+      value_template: "{{ ((value_json.uptime | default(0) | int(0)) / 3600) | round(1) }}"
       unit_of_measurement: "小时"
       icon: mdi:clock-outline
       

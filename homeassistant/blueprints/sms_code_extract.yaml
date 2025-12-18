@@ -4,35 +4,48 @@ blueprint:
   domain: automation
   
   input:
-    mqtt_topic:
-      name: MQTT 主题
-      description: "短信接收主题，格式：{前缀}/{设备ID}/sms/received"
-      default: "sms/a1b2c3/sms/received"
+    sms_content_entity:
+      name: 短信内容传感器
+      description: 选择短信转发器的"最近短信内容"传感器
       selector:
-        text:
+        entity:
+          domain: sensor
     
     notify_service:
       name: 通知服务
       description: 选择要发送通知的服务
       selector:
-        text:
+        select:
+          options:
+            - notify.mobile_app_iphone
+            - notify.persistent_notification
+          custom_value: true
       default: "notify.mobile_app_iphone"
 
+variables:
+  sms_entity: !input sms_content_entity
+
 trigger:
-  - platform: mqtt
-    topic: !input mqtt_topic
+  - platform: state
+    entity_id: !input sms_content_entity
+
+condition:
+  # 忽略状态变为 unavailable/unknown 的情况
+  - condition: template
+    value_template: "{{ trigger.to_state.state not in ['unavailable', 'unknown', 'none', ''] }}"
 
 action:
   - variables:
-      sender: "{{ trigger.payload_json.sender }}"
-      message: "{{ trigger.payload_json.message }}"
+      sender: "{{ state_attr(sms_entity, 'sender') | default('未知') }}"
+      message: "{{ state_attr(sms_entity, 'message') | default(states(sms_entity)) }}"
       # 提取4-8位数字验证码
       code: >-
+        {% set msg = message %}
         {% set ns = namespace(code='') %}
         {% set patterns = ['验证码', '校验码', '动态码', 'code', 'CODE', '码'] %}
         {% for pattern in patterns %}
-          {% if pattern in message %}
-            {% set matches = message | regex_findall('[0-9]{4,8}') %}
+          {% if pattern in msg and ns.code == '' %}
+            {% set matches = msg | regex_findall('[0-9]{4,8}') %}
             {% if matches %}
               {% set ns.code = matches[0] %}
             {% endif %}
@@ -48,7 +61,7 @@ action:
         sequence:
           - service: !input notify_service
             data:
-              title: "验证码: {{ code }}"
+              title: "🔑 验证码: {{ code }}"
               message: "来自 {{ sender }}"
               data:
                 push:
@@ -59,7 +72,7 @@ action:
     default:
       - service: !input notify_service
         data:
-          title: "{{ sender }}"
+          title: "📱 {{ sender }}"
           message: "{{ message }}"
           data:
             push:
