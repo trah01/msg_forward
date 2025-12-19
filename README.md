@@ -3,8 +3,11 @@
 用低成本硬件实现短信自动转发，只需要提供供电和WiFi即可，收到短信后自动推送到手机/邮箱/智能家居，再也不怕错过验证码！
 虽然芯片标记的全网通，该项目可能不支持电信卡，使用电信卡会连不上网，具体请自测。
 
-> 本项目基于 chenxuuu/sms_forwarding 进行二次开发，原项目采用 MIT 协议。本项目保留原作者版权声明，并在此基础上增加/改动了功能。
-原项目固件的视频教程：[B站视频](https://www.bilibili.com/video/BV1cSmABYEiX),少部分不适用于当前修改版，大部分通用。
+> 本项目基于 [chenxuuu/sms_forwarding](https://github.com/chenxuuu/sms_forwarding/) 进行二次开发，原项目采用 MIT 协议。本项目保留原作者版权声明，并在此基础上增加/改动了功能。
+> 原项目固件的视频教程：[B站视频](https://www.bilibili.com/video/BV1cSmABYEiX),少部分不适用于当前修改版，大部分通用。
+
+> 部分功能及ui设计参考[dushixiang/uart_sms_forwarder.git](https://github.com/dushixiang/uart_sms_forwarder)，该项目不用焊接，支持全网通，但需要一个可以运行后台程序的设备，需要的也可以看下这个项目
+
 
 **删除的功能：** PushPlus、Server酱（可用自定义 Webhook 替代）
 
@@ -180,6 +183,7 @@
 - 📊 在 HA 显示信号强度、在线状态
 </br></br>效果如下</br>
 <img src="assets/hahome.png" width="400" />
+
 ### 配置方法
 
 1. 在网页界面展开"MQTT"
