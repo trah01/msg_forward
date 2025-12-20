@@ -1,0 +1,131 @@
+# SMS Forwarder - ESPHome 精简配置
+# 使用自定义 ML307R 组件
+#
+# 硬件: ESP32C3 + ML307R 4G 模块
+# 接线:
+#   ESP32 GPIO3 -> ML307 RX
+#   ESP32 GPIO4 -> ML307 TX
+#   ESP32 GND   -> ML307 GND  
+#   ESP32 5V    -> ML307 VCC & EN
+
+substitutions:
+  device_name: "sms-forwarder"
+  friendly_name: "短信转发器"
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: arduino
+
+logger:
+  level: DEBUG
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+  services:
+    - service: send_sms
+      variables:
+        phone: string
+        message: string
+      then:
+        - lambda: |-
+            id(modem).send_sms(phone, message);
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "SMS-Forwarder-AP"
+    password: !secret ap_password
+
+captive_portal:
+
+web_server:
+  port: 80
+
+# 可选: MQTT (如果需要)
+# mqtt:
+#   broker: !secret mqtt_broker
+#   username: !secret mqtt_username
+#   password: !secret mqtt_password
+
+# 引入自定义组件
+external_components:
+  - source:
+      type: local
+      path: components
+
+# UART 配置
+uart:
+  id: uart_modem
+  tx_pin: GPIO3
+  rx_pin: GPIO4
+  baud_rate: 115200
+  rx_buffer_size: 512
+
+# ML307R 4G 调制解调器组件
+ml307r_modem:
+  id: modem
+  uart_id: uart_modem
+  sms_sender:
+    name: "短信发送者"
+    icon: "mdi:account"
+  sms_content:
+    name: "短信内容"
+    icon: "mdi:message-text"
+  sms_timestamp:
+    name: "短信时间"
+    icon: "mdi:clock"
+  signal_strength:
+    name: "4G信号强度"
+    icon: "mdi:signal"
+  network_status:
+    name: "网络状态"
+    icon: "mdi:access-point-network"
+  modem_online:
+    name: "模块在线"
+    icon: "mdi:cellphone-link"
+
+# 额外传感器
+sensor:
+  - platform: wifi_signal
+    name: "WiFi 信号强度"
+    update_interval: 60s
+    
+  - platform: uptime
+    name: "运行时间"
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "IP 地址"
+    ssid:
+      name: "WiFi SSID"
+
+# 按钮
+button:
+  - platform: restart
+    name: "重启设备"
+    
+  - platform: template
+    name: "手动 Ping"
+    icon: "mdi:access-point-network"
+    on_press:
+      - lambda: id(modem).do_ping();
+      
+  - platform: template
+    name: "刷新状态"
+    icon: "mdi:refresh"
+    on_press:
+      - lambda: |-
+          id(modem).query_signal_strength();
+          id(modem).query_network_status();
