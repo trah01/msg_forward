@@ -113,32 +113,6 @@ void handleRoot() {
   }
   html.replace("%MQTT_TOPICS%", mqttTopicsHtml);
   
-  // 1.5 WiFi 网络配置 HTML
-  String wifiHtml = "";
-  for (int i = 0; i < MAX_WIFI_NETWORKS; i++) {
-    String idx = String(i);
-    String enabledSw = config.wifiNetworks[i].enabled ? "on" : "";
-    String enabledVal = config.wifiNetworks[i].enabled ? "true" : "false";
-    String currentSsid = WiFi.SSID();
-    bool isCurrent = config.wifiNetworks[i].ssid.length() > 0 && config.wifiNetworks[i].ssid == currentSsid;
-    
-    wifiHtml += "<div style=\"padding:10px;background:#f8fafc;border-radius:8px;margin-bottom:8px;border:1px solid " + String(isCurrent ? "var(--success)" : "#e2e8f0") + "\">";
-    wifiHtml += "<div class=\"sw-row\" onclick=\"wfTog(" + idx + ")\">";
-    wifiHtml += "<span style=\"font-weight:600\">网络 " + String(i + 1);
-    if (isCurrent) wifiHtml += " <span class=\"badge b-ok\">当前</span>";
-    wifiHtml += "</span>";
-    wifiHtml += "<div id=\"wfs" + idx + "\" class=\"sw " + enabledSw + "\"></div>";
-    wifiHtml += "<input type=\"hidden\" id=\"wfe" + idx + "\" name=\"wifi" + idx + "en\" value=\"" + enabledVal + "\">";
-    wifiHtml += "</div>";
-    wifiHtml += "<div class=\"grid-2\" style=\"margin-top:8px\">";
-    wifiHtml += "<div class=\"fg\" style=\"margin-bottom:0\"><label>SSID</label><input name=\"wifi" + idx + "ssid\" value=\"" + config.wifiNetworks[i].ssid + "\" placeholder=\"WiFi名称\"></div>";
-    // 密码不回显明文，使用占位符提示
-    String passPlaceholder = config.wifiNetworks[i].password.length() > 0 ? "（已保存，留空则保留）" : "WiFi密码";
-    wifiHtml += "<div class=\"fg\" style=\"margin-bottom:0\"><label>密码</label><input name=\"wifi" + idx + "pass\" type=\"password\" placeholder=\"" + passPlaceholder + "\"></div>";
-    wifiHtml += "</div></div>";
-  }
-  html.replace("%WIFI_NETWORKS%", wifiHtml);
-
   // 2. 基础配置填写
   html.replace("%WEB_USER%", config.webUser);
   html.replace("%WEB_PASS%", config.webPass);
@@ -211,59 +185,41 @@ void handleRoot() {
     }
   }
   html.replace("%TIMER_RM%", String(remainSec));
-
-  // 7. 生成推送通道 HTML
-  String channelsHtml = "";
+  
+  // 7. WiFi 网络配置
+  String currentSsid = WiFi.SSID();
+  for (int i = 0; i < MAX_WIFI_NETWORKS; i++) {
+    String idx = String(i);
+    bool isCurrent = config.wifiNetworks[i].ssid.length() > 0 && config.wifiNetworks[i].ssid == currentSsid;
+    html.replace("%WF" + idx + "_BORDER%", isCurrent ? "var(--success)" : "#e2e8f0");
+    html.replace("%WF" + idx + "_CUR%", isCurrent ? "<span class=\"badge b-ok\">当前</span>" : "");
+    html.replace("%WF" + idx + "_SW%", config.wifiNetworks[i].enabled ? "on" : "");
+    html.replace("%WF" + idx + "_EN%", config.wifiNetworks[i].enabled ? "true" : "false");
+    html.replace("%WF" + idx + "_SSID%", config.wifiNetworks[i].ssid);
+    html.replace("%WF" + idx + "_HINT%", config.wifiNetworks[i].password.length() > 0 ? "（已保存，留空则保留）" : "WiFi密码");
+  }
+  
+  // 8. 推送通道配置
   for (int i = 0; i < MAX_PUSH_CHANNELS; i++) {
     String idx = String(i);
-    String enabledSw = config.pushChannels[i].enabled ? "on" : "";
-    String enabledVal = config.pushChannels[i].enabled ? "true" : "false";
-    
-    // 动态生成折叠卡片（虽然放在 details 下，但每个通道本身也是个小块）
-    // 为了美观，这里每个通道用一个带开关的面板
-    channelsHtml += "<div class=\"card\" style=\"border:1px solid #e2e8f0;padding:12px;margin-bottom:8px;box-shadow:none\">";
-    
-    // 头部开关行
-    channelsHtml += "<div class=\"sw-row\" onclick=\"chTog(" + idx + ")\">";
-    channelsHtml += "<span style=\"font-weight:600\">通道 " + String(i + 1) + "</span>";
-    channelsHtml += "<div id=\"chs" + idx + "\" class=\"sw " + enabledSw + "\"></div>";
-    channelsHtml += "<input type=\"hidden\" id=\"che" + idx + "\" name=\"push" + idx + "en\" value=\"" + enabledVal + "\">";
-    channelsHtml += "</div>";
-
-    // 详情区域 (点击名称展开/点击折叠按钮? 简化处理，直接显示)
-    // 这里使用一个简单的折叠按钮
-    channelsHtml += "<div style=\"font-size:0.85em;color:var(--primary);text-align:right;cursor:pointer\" onclick=\"fd(" + idx + ")\">展开/收起 <span id=\"chi" + idx + "\" style=\"display:inline-block;transition:.2s\">></span></div>";
-    
-    channelsHtml += "<div id=\"chb" + idx + "\" style=\"display:none;margin-top:12px;border-top:1px solid #f1f5f9;padding-top:12px\">";
-    
-    channelsHtml += "<div class=\"fg\"><label>名称</label><input name=\"push" + idx + "name\" value=\"" + config.pushChannels[i].name + "\"></div>";
-    
-    channelsHtml += "<div class=\"fg\"><label>类型</label>";
-    channelsHtml += "<select name=\"push" + idx + "type\" id=\"tp" + idx + "\" onchange=\"upd(" + idx + ")\">";
-    channelsHtml += "<option value=\"1\"" + String(config.pushChannels[i].type == PUSH_TYPE_POST_JSON ? " selected" : "") + ">POST JSON</option>";
-    channelsHtml += "<option value=\"2\"" + String(config.pushChannels[i].type == PUSH_TYPE_BARK ? " selected" : "") + ">Bark</option>";
-    channelsHtml += "<option value=\"3\"" + String(config.pushChannels[i].type == PUSH_TYPE_GET ? " selected" : "") + ">GET请求</option>";
-    channelsHtml += "<option value=\"4\"" + String(config.pushChannels[i].type == PUSH_TYPE_CUSTOM ? " selected" : "") + ">自定义模板</option>";
-    channelsHtml += "<option value=\"5\"" + String(config.pushChannels[i].type == PUSH_TYPE_TELEGRAM ? " selected" : "") + ">Telegram Bot</option>";
-    channelsHtml += "<option value=\"6\"" + String(config.pushChannels[i].type == PUSH_TYPE_WECOM ? " selected" : "") + ">企业微信</option>";
-    channelsHtml += "<option value=\"7\"" + String(config.pushChannels[i].type == PUSH_TYPE_DINGTALK ? " selected" : "") + ">钉钉</option>";
-    channelsHtml += "</select></div>";
-    
-    channelsHtml += "<div class=\"fg\"><label>URL</label><input name=\"push" + idx + "url\" value=\"" + config.pushChannels[i].url + "\" placeholder=\"https://...\"></div>";
-    
-    // Key1 输入框 (Telegram=Chat ID, 钉钉=加签密钥)
-    bool showK1 = (config.pushChannels[i].type == PUSH_TYPE_TELEGRAM || config.pushChannels[i].type == PUSH_TYPE_DINGTALK);
-    String k1Label = (config.pushChannels[i].type == PUSH_TYPE_TELEGRAM) ? "Chat ID" : "加签密钥 (可选)";
-    String k1Hint = (config.pushChannels[i].type == PUSH_TYPE_TELEGRAM) ? "如 123456789" : "SEC开头的密钥";
-    channelsHtml += "<div id=\"k1" + idx + "\" style=\"display:" + (showK1 ? "block" : "none") + "\"><div class=\"fg\"><label id=\"k1l" + idx + "\">" + k1Label + "</label><input name=\"push" + idx + "k1\" value=\"" + config.pushChannels[i].key1 + "\" placeholder=\"" + k1Hint + "\"></div></div>";
-    
-    // 自定义模板 Body (显示条件: type == 4)
-    channelsHtml += "<div id=\"cf" + idx + "\" style=\"display:" + (config.pushChannels[i].type == PUSH_TYPE_CUSTOM ? "block" : "none") + "\"><div class=\"fg\"><label>Body模板</label><textarea name=\"push" + idx + "body\" rows=\"3\">" + config.pushChannels[i].customBody + "</textarea></div></div>";
-    
-    channelsHtml += "</div></div>";
+    int tp = (int)config.pushChannels[i].type;
+    html.replace("%CH" + idx + "_SW%", config.pushChannels[i].enabled ? "on" : "");
+    html.replace("%CH" + idx + "_EN%", config.pushChannels[i].enabled ? "true" : "false");
+    html.replace("%CH" + idx + "_NAME%", config.pushChannels[i].name);
+    html.replace("%CH" + idx + "_URL%", config.pushChannels[i].url);
+    html.replace("%CH" + idx + "_K1%", config.pushChannels[i].key1);
+    html.replace("%CH" + idx + "_BODY%", config.pushChannels[i].customBody);
+    // 类型选中
+    for (int t = 1; t <= 7; t++) {
+      html.replace("%CH" + idx + "_T" + String(t) + "%", tp == t ? "selected" : "");
+    }
+    // Key1 显示条件 (Telegram=5 或 钉钉=7)
+    bool showK1 = (tp == 5 || tp == 7);
+    html.replace("%CH" + idx + "_K1D%", showK1 ? "block" : "none");
+    html.replace("%CH" + idx + "_K1L%", tp == 5 ? "Chat ID" : "加签密钥 (可选)");
+    // 自定义模板显示条件 (type=4)
+    html.replace("%CH" + idx + "_CFD%", tp == 4 ? "block" : "none");
   }
-  html.replace("%PUSH_CHANNELS%", channelsHtml);
-  
   
   setNoCacheHeaders();
   server.send(200, "text/html", html);

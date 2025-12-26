@@ -269,7 +269,39 @@ const char* htmlPage = R"rawliteral(<!DOCTYPE html><html><head><meta charset="UT
   <details open>
     <summary>WiFi 网络 <span class="card-sub">自动选择信号最强的</span></summary>
     <div class="det-body">
-      %WIFI_NETWORKS%
+      <div style="padding:10px;background:#f8fafc;border-radius:8px;margin-bottom:8px;border:1px solid %WF0_BORDER%">
+        <div class="sw-row" onclick="wfTog(0)">
+          <span style="font-weight:600">网络 1 %WF0_CUR%</span>
+          <div id="wfs0" class="sw %WF0_SW%"></div>
+          <input type="hidden" id="wfe0" name="wifi0en" value="%WF0_EN%">
+        </div>
+        <div class="grid-2" style="margin-top:8px">
+          <div class="fg" style="margin-bottom:0"><label>SSID</label><input name="wifi0ssid" value="%WF0_SSID%"></div>
+          <div class="fg" style="margin-bottom:0"><label>密码</label><input name="wifi0pass" type="password" placeholder="%WF0_HINT%"></div>
+        </div>
+      </div>
+      <div style="padding:10px;background:#f8fafc;border-radius:8px;margin-bottom:8px;border:1px solid %WF1_BORDER%">
+        <div class="sw-row" onclick="wfTog(1)">
+          <span style="font-weight:600">网络 2 %WF1_CUR%</span>
+          <div id="wfs1" class="sw %WF1_SW%"></div>
+          <input type="hidden" id="wfe1" name="wifi1en" value="%WF1_EN%">
+        </div>
+        <div class="grid-2" style="margin-top:8px">
+          <div class="fg" style="margin-bottom:0"><label>SSID</label><input name="wifi1ssid" value="%WF1_SSID%"></div>
+          <div class="fg" style="margin-bottom:0"><label>密码</label><input name="wifi1pass" type="password" placeholder="%WF1_HINT%"></div>
+        </div>
+      </div>
+      <div style="padding:10px;background:#f8fafc;border-radius:8px;margin-bottom:8px;border:1px solid %WF2_BORDER%">
+        <div class="sw-row" onclick="wfTog(2)">
+          <span style="font-weight:600">网络 3 %WF2_CUR%</span>
+          <div id="wfs2" class="sw %WF2_SW%"></div>
+          <input type="hidden" id="wfe2" name="wifi2en" value="%WF2_EN%">
+        </div>
+        <div class="grid-2" style="margin-top:8px">
+          <div class="fg" style="margin-bottom:0"><label>SSID</label><input name="wifi2ssid" value="%WF2_SSID%"></div>
+          <div class="fg" style="margin-bottom:0"><label>密码</label><input name="wifi2pass" type="password" placeholder="%WF2_HINT%"></div>
+        </div>
+      </div>
       <div style="font-size:0.85em;color:var(--text-light);margin-top:8px">
         💡 可配置多个WiFi，设备会自动连接信号最强的网络。修改后需重启生效。
       </div>
@@ -345,7 +377,81 @@ const char* htmlPage = R"rawliteral(<!DOCTYPE html><html><head><meta charset="UT
   <details>
     <summary>Web 通道</summary>
     <div class="det-body">
-      %PUSH_CHANNELS%
+      <div class="card" style="border:1px solid #e2e8f0;padding:12px;margin-bottom:8px;box-shadow:none">
+        <div class="sw-row" onclick="chTog(0)">
+          <span style="font-weight:600">通道 1</span>
+          <div id="chs0" class="sw %CH0_SW%"></div>
+          <input type="hidden" id="che0" name="push0en" value="%CH0_EN%">
+        </div>
+        <div style="font-size:0.85em;color:var(--primary);text-align:right;cursor:pointer" onclick="fd(0)">展开/收起 <span id="chi0" style="display:inline-block;transition:.2s">></span></div>
+        <div id="chb0" style="display:none;margin-top:12px;border-top:1px solid #f1f5f9;padding-top:12px">
+          <div class="fg"><label>名称</label><input name="push0name" value="%CH0_NAME%"></div>
+          <div class="fg"><label>类型</label>
+            <select name="push0type" id="tp0" onchange="upd(0)">
+              <option value="1" %CH0_T1%>POST JSON</option>
+              <option value="2" %CH0_T2%>Bark</option>
+              <option value="3" %CH0_T3%>GET请求</option>
+              <option value="4" %CH0_T4%>自定义模板</option>
+              <option value="5" %CH0_T5%>Telegram Bot</option>
+              <option value="6" %CH0_T6%>企业微信</option>
+              <option value="7" %CH0_T7%>钉钉</option>
+            </select>
+          </div>
+          <div class="fg"><label>URL</label><input name="push0url" value="%CH0_URL%"></div>
+          <div id="k10" style="display:%CH0_K1D%"><div class="fg"><label id="k1l0">%CH0_K1L%</label><input name="push0k1" value="%CH0_K1%"></div></div>
+          <div id="cf0" style="display:%CH0_CFD%"><div class="fg"><label>Body模板</label><textarea name="push0body" rows="3">%CH0_BODY%</textarea></div></div>
+        </div>
+      </div>
+      <div class="card" style="border:1px solid #e2e8f0;padding:12px;margin-bottom:8px;box-shadow:none">
+        <div class="sw-row" onclick="chTog(1)">
+          <span style="font-weight:600">通道 2</span>
+          <div id="chs1" class="sw %CH1_SW%"></div>
+          <input type="hidden" id="che1" name="push1en" value="%CH1_EN%">
+        </div>
+        <div style="font-size:0.85em;color:var(--primary);text-align:right;cursor:pointer" onclick="fd(1)">展开/收起 <span id="chi1" style="display:inline-block;transition:.2s">></span></div>
+        <div id="chb1" style="display:none;margin-top:12px;border-top:1px solid #f1f5f9;padding-top:12px">
+          <div class="fg"><label>名称</label><input name="push1name" value="%CH1_NAME%"></div>
+          <div class="fg"><label>类型</label>
+            <select name="push1type" id="tp1" onchange="upd(1)">
+              <option value="1" %CH1_T1%>POST JSON</option>
+              <option value="2" %CH1_T2%>Bark</option>
+              <option value="3" %CH1_T3%>GET请求</option>
+              <option value="4" %CH1_T4%>自定义模板</option>
+              <option value="5" %CH1_T5%>Telegram Bot</option>
+              <option value="6" %CH1_T6%>企业微信</option>
+              <option value="7" %CH1_T7%>钉钉</option>
+            </select>
+          </div>
+          <div class="fg"><label>URL</label><input name="push1url" value="%CH1_URL%"></div>
+          <div id="k11" style="display:%CH1_K1D%"><div class="fg"><label id="k1l1">%CH1_K1L%</label><input name="push1k1" value="%CH1_K1%"></div></div>
+          <div id="cf1" style="display:%CH1_CFD%"><div class="fg"><label>Body模板</label><textarea name="push1body" rows="3">%CH1_BODY%</textarea></div></div>
+        </div>
+      </div>
+      <div class="card" style="border:1px solid #e2e8f0;padding:12px;margin-bottom:8px;box-shadow:none">
+        <div class="sw-row" onclick="chTog(2)">
+          <span style="font-weight:600">通道 3</span>
+          <div id="chs2" class="sw %CH2_SW%"></div>
+          <input type="hidden" id="che2" name="push2en" value="%CH2_EN%">
+        </div>
+        <div style="font-size:0.85em;color:var(--primary);text-align:right;cursor:pointer" onclick="fd(2)">展开/收起 <span id="chi2" style="display:inline-block;transition:.2s">></span></div>
+        <div id="chb2" style="display:none;margin-top:12px;border-top:1px solid #f1f5f9;padding-top:12px">
+          <div class="fg"><label>名称</label><input name="push2name" value="%CH2_NAME%"></div>
+          <div class="fg"><label>类型</label>
+            <select name="push2type" id="tp2" onchange="upd(2)">
+              <option value="1" %CH2_T1%>POST JSON</option>
+              <option value="2" %CH2_T2%>Bark</option>
+              <option value="3" %CH2_T3%>GET请求</option>
+              <option value="4" %CH2_T4%>自定义模板</option>
+              <option value="5" %CH2_T5%>Telegram Bot</option>
+              <option value="6" %CH2_T6%>企业微信</option>
+              <option value="7" %CH2_T7%>钉钉</option>
+            </select>
+          </div>
+          <div class="fg"><label>URL</label><input name="push2url" value="%CH2_URL%"></div>
+          <div id="k12" style="display:%CH2_K1D%"><div class="fg"><label id="k1l2">%CH2_K1L%</label><input name="push2k1" value="%CH2_K1%"></div></div>
+          <div id="cf2" style="display:%CH2_CFD%"><div class="fg"><label>Body模板</label><textarea name="push2body" rows="3">%CH2_BODY%</textarea></div></div>
+        </div>
+      </div>
     </div>
   </details>
 
