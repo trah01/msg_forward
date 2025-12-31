@@ -42,6 +42,8 @@ void publishMqttStatus(const char* status);
 void publishMqttDeviceStatus();
 
 // Home Assistant 自动发现
-void publishHaDiscoveryConfig();     // 发布 HA 自动发现配置
+void publishHaDiscoveryConfig();      // 发布 HA 自动发现配置
+void publishAirplaneModeStatus();     // 发布飞行模式状态
+void publishSchedAirplaneStatus();    // 发布定时飞行模式状态
 
 #endif // MQTT_HANDLER_H

@@ -103,13 +103,13 @@ int sendHttpRequest(const String& url, const String& method, const String& conte
   }
   
   int httpCode;
-  esp_task_wdt_reset(); // 发送前喂狗
+   // 发送前喂狗
   if (method == "GET") {
     httpCode = http.GET();
   } else {
     httpCode = http.POST(body);
   }
-  esp_task_wdt_reset(); // 收到响应后喂狗
+   // 收到响应后喂狗
   
   if (httpCode > 0) {
     Serial.printf("HTTP响应码: %d\n", httpCode);
@@ -303,7 +303,7 @@ void sendSMSToServer(const char* sender, const char* message, const char* timest
   Serial.println("\n=== 开始多通道推送 ===");
   for (int i = 0; i < MAX_PUSH_CHANNELS; i++) {
     if (isPushChannelValid(config.pushChannels[i])) {
-      esp_task_wdt_reset(); // 每个通道推送前喂狗
+       // 每个通道推送前喂狗
       sendToChannel(config.pushChannels[i], sender, message, timestamp);
       delay(100); // 短暂延迟避免请求过快
     }
@@ -343,7 +343,7 @@ void sendEmailNotification(const char* subject, const char* body) {
     unsigned long ntpStart = millis();
     while (time(nullptr) < 100000 && millis() - ntpStart < 10000) {
       delay(100);
-      esp_task_wdt_reset();  // 喂狗
+        // 喂狗
     }
     msg.timestamp = time(nullptr);
     smtp.send(msg);

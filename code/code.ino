@@ -27,6 +27,16 @@
 #include <Preferences.h>
 #include <SPIFFS.h>
 #include <pdulib.h>
+
+// [调试] 看门狗开关: 0=禁用, 1=启用
+#define WDT_ENABLED 0
+
+#if WDT_ENABLED
+  #define wdt_reset() wdt_reset()
+#else
+  #define wdt_reset() ((void)0)
+#endif
+
 #define ENABLE_SMTP
 #define ENABLE_DEBUG
 #include <ReadyMail.h>
@@ -84,10 +94,9 @@ unsigned long lastMqttStatusReport = 0;
 const unsigned long MQTT_RECONNECT_INTERVAL = 5000;
 const unsigned long MQTT_STATUS_INTERVAL = 60000;  // 每60秒上报一次状态
 
-// 定时过滤检查变量
-unsigned long lastSchedFilterCheck = 0;
-const unsigned long SCHED_FILTER_CHECK_INTERVAL = 60000;  // 每60秒检查一次
-int currentSchedFilterMode = -1;  // 当前应用的模式，-1表示未初始化
+// 定时飞行模式检查变量
+unsigned long lastSchedAirplaneCheck = 0;
+const unsigned long SCHED_AIRPLANE_CHECK_INTERVAL = 60000;  // 每60秒检查一次
 
 // ========== setup 函数 ==========
 void setup() {
@@ -100,36 +109,35 @@ void setup() {
   // 初始化长短信缓存
   initConcatBuffer();
   
+  #if WDT_ENABLED
   // 启用看门狗 (60秒超时)
-  // 适配 ESP32 Arduino Core v3.0+ (IDF 5.x)
   esp_task_wdt_config_t wdt_config = {
       .timeout_ms = 60000,
       .idle_core_mask = 0, // 不监控 IDLE 任务，只监控显式添加的任务
       .trigger_panic = true
   };
   
-  // 尝试重新配置（如果已初始化）或者初始化
   esp_err_t err = esp_task_wdt_reconfigure(&wdt_config);
   if (err != ESP_OK) {
       err = esp_task_wdt_init(&wdt_config);
   }
-  
   if (err == ESP_OK) {
-      esp_task_wdt_add(NULL); // 监控当前任务 (loopTask)
-      esp_task_wdt_reset();
+      esp_task_wdt_add(NULL);
+      
       Serial.println("看门狗已启用(60s)");
   } else {
       Serial.printf("看门狗配置失败: 0x%x\n", err);
   }
+  #else
+  Serial.println("看门狗已临时禁用 (用于调试)");
+  #endif
   
-  esp_task_wdt_reset();
   // 初始化短信存储(SPIFFS)
   initSmsStorage();
-  esp_task_wdt_reset();
   
   // 加载配置
   loadConfig();
-  esp_task_wdt_reset();
+  
   configValid = isConfigValid();
   
   // 添加所有启用的 WiFi 网络（WiFiMulti 会自动选择信号最强的）
@@ -172,7 +180,8 @@ void setup() {
   server.on("/stats", handleStats);                    // 统计信息
   server.on("/filter", HTTP_POST, handleFilterSave);   // 号码过滤保存
   server.on("/contentfilter", HTTP_POST, handleContentFilterSave);  // 内容过滤保存
-  server.on("/schedfilter", HTTP_POST, handleSchedFilterSave);      // 定时过滤保存
+  server.on("/airplane", HTTP_POST, handleAirplane);                // 飞行模式
+  server.on("/schedairplane", HTTP_POST, handleSchedAirplane);      // 定时飞行模式
   server.begin();
   Serial.println("HTTP服务器已启动");
   
@@ -249,13 +258,20 @@ void setup() {
   // NTP 时间同步（用于定时过滤）
   configTime(8 * 3600, 0, "pool.ntp.org", "ntp.aliyun.com");  // UTC+8 中国时区
   Serial.println("NTP时间同步已配置");
-  esp_task_wdt_reset(); // setup 结束前最后一次喂狗
+  
+  // 应用飞行模式（根据保存的配置设置 ML307R CFUN 状态）
+  if (config.airplaneMode) {
+    Serial.println("启动时检测到飞行模式已开启，应用设置...");
+    applyAirplaneMode();
+  }
+  
+   // setup 结束前最后一次喂狗
 }
 
-// 检查定时过滤模式
-void checkScheduledFilter() {
-  if (!config.schedFilterEnabled) return;
-  esp_task_wdt_reset(); // 检查前喂狗
+// 检查定时飞行模式
+void checkScheduledAirplane() {
+  if (!config.schedAirplaneEnabled) return;
+   // 检查前喂狗
   
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo)) {
@@ -267,50 +283,31 @@ void checkScheduledFilter() {
   int currentMin = timeinfo.tm_min;
   int currentTime = currentHour * 60 + currentMin;  // 转换为分钟
   
-  int startTime = config.schedFilterStartHour * 60 + config.schedFilterStartMin;
-  int endTime = config.schedFilterEndHour * 60 + config.schedFilterEndMin;
+  int startTime = config.schedAirplaneStartHour * 60 + config.schedAirplaneStartMin;
+  int endTime = config.schedAirplaneEndHour * 60 + config.schedAirplaneEndMin;
   
-  // 判断当前是否在时段A内
-  bool inPeriodA = false;
+  // 判断当前是否在飞行模式时段内
+  bool shouldBeAirplane = false;
   if (startTime <= endTime) {
-    // 正常时段，如 08:00 - 22:00
-    inPeriodA = (currentTime >= startTime && currentTime < endTime);
+    // 正常时段，如 00:00 - 06:00
+    shouldBeAirplane = (currentTime >= startTime && currentTime < endTime);
   } else {
     // 跨午夜时段，如 22:00 - 08:00
-    inPeriodA = (currentTime >= startTime || currentTime < endTime);
+    shouldBeAirplane = (currentTime >= startTime || currentTime < endTime);
   }
   
-  int targetMode = inPeriodA ? config.schedFilterModeA : config.schedFilterModeB;
+  // 如果状态未变化，无需操作
+  if (shouldBeAirplane == config.airplaneMode) return;
   
-  // 如果模式未变化，无需操作
-  if (targetMode == currentSchedFilterMode) return;
+  // 切换飞行模式
+  Serial.printf("定时飞行: %s飞行模式 (%02d:%02d)\n", 
+    shouldBeAirplane ? "开启" : "关闭", currentHour, currentMin);
   
-  // 切换模式
-  currentSchedFilterMode = targetMode;
-  
-  switch (targetMode) {
-    case 0:  // 禁用过滤
-      config.filterEnabled = false;
-      Serial.println("定时过滤: 已禁用号码过滤");
-      break;
-    case 1:  // 白名单
-      config.filterEnabled = true;
-      config.filterIsWhitelist = true;
-      Serial.println("定时过滤: 已切换到白名单模式");
-      break;
-    case 2:  // 黑名单
-      config.filterEnabled = true;
-      config.filterIsWhitelist = false;
-      Serial.println("定时过滤: 已切换到黑名单模式");
-      break;
-  }
-  
-  // 保存配置（可选，如希望重启后保持）
-  // saveConfig();
+  setAirplaneMode(shouldBeAirplane);
   
   // 发布状态更新
   if (config.mqttEnabled && mqttClient.connected()) {
-    publishFilterStatus();
+    publishAirplaneModeStatus();
   }
 }
 
@@ -368,12 +365,12 @@ void loop() {
     }
   }
   
-  // 定时过滤检查
-  if (config.schedFilterEnabled) {
+  // 定时飞行模式检查
+  if (config.schedAirplaneEnabled) {
     unsigned long now = millis();
-    if (now - lastSchedFilterCheck > SCHED_FILTER_CHECK_INTERVAL) {
-      lastSchedFilterCheck = now;
-      checkScheduledFilter();
+    if (now - lastSchedAirplaneCheck > SCHED_AIRPLANE_CHECK_INTERVAL) {
+      lastSchedAirplaneCheck = now;
+      checkScheduledAirplane();
     }
   }
   
@@ -387,5 +384,5 @@ void loop() {
   checkSerial1URC();
   
   // 喂狗
-  esp_task_wdt_reset();
+  
 }

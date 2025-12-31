@@ -209,53 +209,55 @@ void publishHaDiscoveryConfig() {
   contentFilterConfig += "}";
   mqttClient.publish(contentFilterConfigTopic.c_str(), contentFilterConfig.c_str(), true);
   
-  // 12. 定时过滤开关
-  String schedFilterStatusTopic = config.mqttPrefix + "/" + mqttDeviceId + "/sched_filter/status";
-  String schedFilterSwitchTopic = haPrefix + "/switch/" + nodeId + "_sched_filter/config";
-  String schedFilterSwitch = "{";
-  schedFilterSwitch += "\"name\":\"定时过滤\",";
-  schedFilterSwitch += "\"unique_id\":\"" + nodeId + "_sched_filter\",";
-  schedFilterSwitch += "\"command_topic\":\"" + mqttTopicCmd + "\",";
-  schedFilterSwitch += "\"payload_on\":\"{\\\"action\\\":\\\"toggle_sched_filter\\\",\\\"enabled\\\":\\\"true\\\"}\",";
-  schedFilterSwitch += "\"payload_off\":\"{\\\"action\\\":\\\"toggle_sched_filter\\\",\\\"enabled\\\":\\\"false\\\"}\",";
-  schedFilterSwitch += "\"state_topic\":\"" + schedFilterStatusTopic + "\",";
-  schedFilterSwitch += "\"value_template\":\"{{ 'ON' if value_json.enabled else 'OFF' }}\",";
-  schedFilterSwitch += "\"icon\":\"mdi:clock-outline\",";
-  schedFilterSwitch += deviceInfo;
-  schedFilterSwitch += "}";
-  mqttClient.publish(schedFilterSwitchTopic.c_str(), schedFilterSwitch.c_str(), true);
+  // 12. 定时飞行模式开关
+  String schedAirplaneStatusTopic = config.mqttPrefix + "/" + mqttDeviceId + "/sched_airplane/status";
+  String schedAirplaneSwitchTopic = haPrefix + "/switch/" + nodeId + "_sched_airplane/config";
+  String schedAirplaneSwitch = "{";
+  schedAirplaneSwitch += "\"name\":\"定时飞行\",";
+  schedAirplaneSwitch += "\"unique_id\":\"" + nodeId + "_sched_airplane\",";
+  schedAirplaneSwitch += "\"command_topic\":\"" + mqttTopicCmd + "\",";
+  schedAirplaneSwitch += "\"payload_on\":\"{\\\"action\\\":\\\"toggle_sched_airplane\\\",\\\"enabled\\\":\\\"true\\\"}\",";
+  schedAirplaneSwitch += "\"payload_off\":\"{\\\"action\\\":\\\"toggle_sched_airplane\\\",\\\"enabled\\\":\\\"false\\\"}\",";
+  schedAirplaneSwitch += "\"state_topic\":\"" + schedAirplaneStatusTopic + "\",";
+  schedAirplaneSwitch += "\"value_template\":\"{{ 'ON' if value_json.enabled else 'OFF' }}\",";
+  schedAirplaneSwitch += "\"icon\":\"mdi:clock-outline\",";
+  schedAirplaneSwitch += deviceInfo;
+  schedAirplaneSwitch += "}";
+  mqttClient.publish(schedAirplaneSwitchTopic.c_str(), schedAirplaneSwitch.c_str(), true);
   
-  // 13. 定时过滤时段A模式选择
-  String schedModeAConfigTopic = haPrefix + "/select/" + nodeId + "_sched_mode_a/config";
-  String schedModeAConfig = "{";
-  schedModeAConfig += "\"name\":\"时段A模式(夜间)\",";
-  schedModeAConfig += "\"unique_id\":\"" + nodeId + "_sched_mode_a\",";
-  schedModeAConfig += "\"command_topic\":\"" + mqttTopicCmd + "\",";
-  schedModeAConfig += "\"command_template\":\"{\\\"action\\\":\\\"set_sched_filter\\\",\\\"mode_a\\\":\\\"{% if value == 'disabled' %}0{% elif value == 'whitelist' %}1{% else %}2{% endif %}\\\"}\",";
-  schedModeAConfig += "\"state_topic\":\"" + schedFilterStatusTopic + "\",";
-  schedModeAConfig += "\"value_template\":\"{{ value_json.mode_a }}\",";
-  schedModeAConfig += "\"options\":[\"disabled\",\"whitelist\",\"blacklist\"],";
-  schedModeAConfig += "\"icon\":\"mdi:moon-waning-crescent\",";
-  schedModeAConfig += deviceInfo;
-  schedModeAConfig += "}";
-  mqttClient.publish(schedModeAConfigTopic.c_str(), schedModeAConfig.c_str(), true);
-  
-  // 14. 定时过滤时段B模式选择
-  String schedModeBConfigTopic = haPrefix + "/select/" + nodeId + "_sched_mode_b/config";
-  String schedModeBConfig = "{";
-  schedModeBConfig += "\"name\":\"时段B模式(白天)\",";
-  schedModeBConfig += "\"unique_id\":\"" + nodeId + "_sched_mode_b\",";
-  schedModeBConfig += "\"command_topic\":\"" + mqttTopicCmd + "\",";
-  schedModeBConfig += "\"command_template\":\"{\\\"action\\\":\\\"set_sched_filter\\\",\\\"mode_b\\\":\\\"{% if value == 'disabled' %}0{% elif value == 'whitelist' %}1{% else %}2{% endif %}\\\"}\",";
-  schedModeBConfig += "\"state_topic\":\"" + schedFilterStatusTopic + "\",";
-  schedModeBConfig += "\"value_template\":\"{{ value_json.mode_b }}\",";
-  schedModeBConfig += "\"options\":[\"disabled\",\"whitelist\",\"blacklist\"],";
-  schedModeBConfig += "\"icon\":\"mdi:white-balance-sunny\",";
-  schedModeBConfig += deviceInfo;
-  schedModeBConfig += "}";
-  mqttClient.publish(schedModeBConfigTopic.c_str(), schedModeBConfig.c_str(), true);
+  // 15. 飞行模式开关
+  String airplaneStatusTopic = config.mqttPrefix + "/" + mqttDeviceId + "/airplane/status";
+  String airplaneSwitchTopic = haPrefix + "/switch/" + nodeId + "_airplane/config";
+  String airplaneSwitch = "{";
+  airplaneSwitch += "\"name\":\"飞行模式\",";
+  airplaneSwitch += "\"unique_id\":\"" + nodeId + "_airplane\",";
+  airplaneSwitch += "\"command_topic\":\"" + mqttTopicCmd + "\",";
+  airplaneSwitch += "\"payload_on\":\"{\\\"action\\\":\\\"set_airplane_mode\\\",\\\"enabled\\\":\\\"true\\\"}\",";
+  airplaneSwitch += "\"payload_off\":\"{\\\"action\\\":\\\"set_airplane_mode\\\",\\\"enabled\\\":\\\"false\\\"}\",";
+  airplaneSwitch += "\"state_topic\":\"" + airplaneStatusTopic + "\",";
+  airplaneSwitch += "\"value_template\":\"{{ 'ON' if value_json.enabled else 'OFF' }}\",";
+  airplaneSwitch += "\"icon\":\"mdi:airplane\",";
+  airplaneSwitch += deviceInfo;
+  airplaneSwitch += "}";
+  mqttClient.publish(airplaneSwitchTopic.c_str(), airplaneSwitch.c_str(), true);
   
   Serial.println("HA自动发现配置已发布");
+}
+
+// 发布飞行模式状态
+void publishAirplaneModeStatus() {
+  if (!config.mqttEnabled || !mqttClient.connected()) return;
+  
+  String json = "{";
+  json += "\"enabled\":" + String(config.airplaneMode ? "true" : "false") + ",";
+  json += "\"status\":\"" + String(config.airplaneMode ? "on" : "off") + "\"";
+  json += "}";
+  
+  // 发布到飞行模式状态主题
+  String airplaneTopic = config.mqttPrefix + "/" + mqttDeviceId + "/airplane/status";
+  mqttClient.publish(airplaneTopic.c_str(), json.c_str(), true);
+  
+  Serial.println("已发布飞行模式状态: " + String(config.airplaneMode ? "开启" : "关闭"));
 }
 
 // MQTT 重连函数
@@ -272,7 +274,7 @@ void mqttReconnect() {
   Serial.println("客户端ID: " + clientId);
   
   bool connected = false;
-  esp_task_wdt_reset(); // 连接前喂狗
+   // 连接前喂狗
   
   // 配置遗嘱消息（设备离线时自动发送）- 同时发送到两类主题
   String willMessage = "{\"status\":\"offline\",\"device\":\"" + mqttDeviceId + "\"}";
@@ -297,7 +299,7 @@ void mqttReconnect() {
     );
   }
   
-  esp_task_wdt_reset(); // 无论连接成功与否都喂狗
+   // 无论连接成功与否都喂狗
   
   if (connected) {
     Serial.println("MQTT连接成功");
@@ -320,8 +322,11 @@ void mqttReconnect() {
     // 发布过滤配置状态（初始化 HA Select 实体）
     publishFilterStatus();
     
-    // 发布定时过滤状态
-    publishSchedFilterStatus();
+    // 发布定时飞行状态
+    publishSchedAirplaneStatus();
+    
+    // 发布飞行模式状态
+    publishAirplaneModeStatus();
   } else {
     Serial.print("MQTT连接失败, 错误码: ");
     Serial.println(mqttClient.state());
@@ -371,39 +376,30 @@ void publishFilterStatus() {
   Serial.println("已发布过滤状态");
 }
 
-// 发布定时过滤状态
-void publishSchedFilterStatus() {
+// 发布定时飞行模式状态
+void publishSchedAirplaneStatus() {
   if (!config.mqttEnabled || !mqttClient.connected()) return;
-  
-  String modeAStr = config.schedFilterModeA == 0 ? "disabled" : 
-                    (config.schedFilterModeA == 1 ? "whitelist" : "blacklist");
-  String modeBStr = config.schedFilterModeB == 0 ? "disabled" : 
-                    (config.schedFilterModeB == 1 ? "whitelist" : "blacklist");
   
   // 构建时间字符串
   char startTimeStr[6], endTimeStr[6];
-  sprintf(startTimeStr, "%02d:%02d", config.schedFilterStartHour, config.schedFilterStartMin);
-  sprintf(endTimeStr, "%02d:%02d", config.schedFilterEndHour, config.schedFilterEndMin);
+  sprintf(startTimeStr, "%02d:%02d", config.schedAirplaneStartHour, config.schedAirplaneStartMin);
+  sprintf(endTimeStr, "%02d:%02d", config.schedAirplaneEndHour, config.schedAirplaneEndMin);
   
   String json = "{";
-  json += "\"enabled\":" + String(config.schedFilterEnabled ? "true" : "false") + ",";
+  json += "\"enabled\":" + String(config.schedAirplaneEnabled ? "true" : "false") + ",";
   json += "\"start_time\":\"" + String(startTimeStr) + "\",";
   json += "\"end_time\":\"" + String(endTimeStr) + "\",";
-  json += "\"start_hour\":" + String(config.schedFilterStartHour) + ",";
-  json += "\"start_min\":" + String(config.schedFilterStartMin) + ",";
-  json += "\"end_hour\":" + String(config.schedFilterEndHour) + ",";
-  json += "\"end_min\":" + String(config.schedFilterEndMin) + ",";
-  json += "\"mode_a\":\"" + modeAStr + "\",";
-  json += "\"mode_b\":\"" + modeBStr + "\",";
-  json += "\"mode_a_num\":" + String(config.schedFilterModeA) + ",";
-  json += "\"mode_b_num\":" + String(config.schedFilterModeB);
+  json += "\"start_hour\":" + String(config.schedAirplaneStartHour) + ",";
+  json += "\"start_min\":" + String(config.schedAirplaneStartMin) + ",";
+  json += "\"end_hour\":" + String(config.schedAirplaneEndHour) + ",";
+  json += "\"end_min\":" + String(config.schedAirplaneEndMin);
   json += "}";
   
-  // 发布到定时过滤状态主题
-  String schedTopic = config.mqttPrefix + "/" + mqttDeviceId + "/sched_filter/status";
+  // 发布到定时飞行模式状态主题
+  String schedTopic = config.mqttPrefix + "/" + mqttDeviceId + "/sched_airplane/status";
   mqttClient.publish(schedTopic.c_str(), json.c_str(), true);
   
-  Serial.println("已发布定时过滤状态");
+  Serial.println("已发布定时飞行状态");
 }
 
 // MQTT 消息回调处理
@@ -529,7 +525,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       }
       if (gotResult) break;
       delay(10);
-      esp_task_wdt_reset();  // 喂狗，等待 ping 可能需要 35 秒
+        // 喂狗，等待 ping 可能需要 35 秒
     }
     
     sendATCommand("AT+CGACT=0,1", 5000);
@@ -624,47 +620,55 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
         Serial.println("获取过滤状态...");
         publishFilterStatus();
       }
-      // 设置定时过滤
-      else if (actionRaw == "set_sched_filter") {
+      // 设置定时飞行模式
+      else if (actionRaw == "set_sched_airplane") {
         String enabled = extractJsonString(message, "enabled");
         String startH = extractJsonString(message, "start_hour");
         String startM = extractJsonString(message, "start_min");
         String endH = extractJsonString(message, "end_hour");
         String endM = extractJsonString(message, "end_min");
-        String modeA = extractJsonString(message, "mode_a");
-        String modeB = extractJsonString(message, "mode_b");
         
         if (enabled.length() > 0) {
-          config.schedFilterEnabled = (enabled == "true" || enabled == "1");
+          config.schedAirplaneEnabled = (enabled == "true" || enabled == "1");
         }
-        if (startH.length() > 0) config.schedFilterStartHour = startH.toInt();
-        if (startM.length() > 0) config.schedFilterStartMin = startM.toInt();
-        if (endH.length() > 0) config.schedFilterEndHour = endH.toInt();
-        if (endM.length() > 0) config.schedFilterEndMin = endM.toInt();
-        if (modeA.length() > 0) config.schedFilterModeA = modeA.toInt();
-        if (modeB.length() > 0) config.schedFilterModeB = modeB.toInt();
+        if (startH.length() > 0) config.schedAirplaneStartHour = startH.toInt();
+        if (startM.length() > 0) config.schedAirplaneStartMin = startM.toInt();
+        if (endH.length() > 0) config.schedAirplaneEndHour = endH.toInt();
+        if (endM.length() > 0) config.schedAirplaneEndMin = endM.toInt();
         
         saveConfig();
-        Serial.printf("定时过滤已配置: %s, %02d:%02d-%02d:%02d, A=%d, B=%d\n",
-          config.schedFilterEnabled ? "启用" : "禁用",
-          config.schedFilterStartHour, config.schedFilterStartMin,
-          config.schedFilterEndHour, config.schedFilterEndMin,
-          config.schedFilterModeA, config.schedFilterModeB);
+        Serial.printf("定时飞行已配置: %s, %02d:%02d-%02d:%02d\n",
+          config.schedAirplaneEnabled ? "启用" : "禁用",
+          config.schedAirplaneStartHour, config.schedAirplaneStartMin,
+          config.schedAirplaneEndHour, config.schedAirplaneEndMin);
         
-        publishSchedFilterStatus();
+        publishSchedAirplaneStatus();
       }
-      // 获取定时过滤状态
-      else if (actionRaw == "get_sched_filter") {
-        Serial.println("获取定时过滤状态...");
-        publishSchedFilterStatus();
+      // 获取定时飞行状态
+      else if (actionRaw == "get_sched_airplane") {
+        Serial.println("获取定时飞行状态...");
+        publishSchedAirplaneStatus();
       }
-      // 启用/禁用定时过滤
-      else if (actionRaw == "toggle_sched_filter") {
+      // 启用/禁用定时飞行
+      else if (actionRaw == "toggle_sched_airplane") {
         String enabled = extractJsonString(message, "enabled");
-        config.schedFilterEnabled = (enabled == "true" || enabled == "1" || enabled == "on");
+        config.schedAirplaneEnabled = (enabled == "true" || enabled == "1" || enabled == "on");
         saveConfig();
-        Serial.println(config.schedFilterEnabled ? "定时过滤已启用" : "定时过滤已禁用");
-        publishSchedFilterStatus();
+        Serial.println(config.schedAirplaneEnabled ? "定时飞行已启用" : "定时飞行已禁用");
+        publishSchedAirplaneStatus();
+      }
+      // 设置飞行模式
+      else if (actionRaw == "set_airplane_mode") {
+        String enabled = extractJsonString(message, "enabled");
+        bool newState = (enabled == "true" || enabled == "1" || enabled == "on");
+        Serial.println(newState ? "MQTT: 开启飞行模式" : "MQTT: 关闭飞行模式");
+        setAirplaneMode(newState);
+        publishAirplaneModeStatus();
+      }
+      // 获取飞行模式状态
+      else if (actionRaw == "get_airplane_mode") {
+        Serial.println("获取飞行模式状态...");
+        publishAirplaneModeStatus();
       }
       else {
         Serial.println("未知命令: " + actionRaw);

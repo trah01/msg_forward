@@ -12,7 +12,7 @@ void saveConfig() {
   preferences.begin("sms_config", false);
   
   // 喂狗防止超时
-  esp_task_wdt_reset();
+  
   yield();
   
   // 保存 WiFi 配置
@@ -24,7 +24,7 @@ void saveConfig() {
     yield();  // 让出 CPU
   }
   
-  esp_task_wdt_reset();
+  
   
   preferences.putString("smtpServer", config.smtpServer);
   preferences.putInt("smtpPort", config.smtpPort);
@@ -35,7 +35,7 @@ void saveConfig() {
   preferences.putString("webUser", config.webUser);
   preferences.putString("webPass", config.webPass);
   
-  esp_task_wdt_reset();
+  
   yield();
   
   // 保存推送通道配置
@@ -48,7 +48,7 @@ void saveConfig() {
     preferences.putString((prefix + "k1").c_str(), config.pushChannels[i].key1);
     preferences.putString((prefix + "k2").c_str(), config.pushChannels[i].key2);
     preferences.putString((prefix + "body").c_str(), config.pushChannels[i].customBody);
-    esp_task_wdt_reset();
+    
     yield();  // 让出 CPU
   }
   
@@ -59,7 +59,7 @@ void saveConfig() {
   preferences.putString("timerPhone", config.timerPhone);
   preferences.putString("timerMsg", config.timerMessage);
   
-  esp_task_wdt_reset();
+  
   yield();
   
   // 保存 MQTT 配置
@@ -75,7 +75,7 @@ void saveConfig() {
   preferences.putBool("mqttHaDisc", config.mqttHaDiscovery);
   preferences.putString("mqttHaPre", config.mqttHaPrefix);
   
-  esp_task_wdt_reset();
+  
   
   // 保存黑白名单配置（号码过滤）
   preferences.putBool("filterEn", config.filterEnabled);
@@ -87,17 +87,18 @@ void saveConfig() {
   preferences.putBool("cfWL", config.contentFilterIsWhitelist);
   preferences.putString("cfList", config.contentFilterList);
   
-  // 保存定时过滤配置
-  preferences.putBool("sfEn", config.schedFilterEnabled);
-  preferences.putInt("sfStartH", config.schedFilterStartHour);
-  preferences.putInt("sfStartM", config.schedFilterStartMin);
-  preferences.putInt("sfEndH", config.schedFilterEndHour);
-  preferences.putInt("sfEndM", config.schedFilterEndMin);
-  preferences.putInt("sfModeA", config.schedFilterModeA);
-  preferences.putInt("sfModeB", config.schedFilterModeB);
+  // 保存飞行模式
+  preferences.putBool("airplane", config.airplaneMode);
+  
+  // 保存定时飞行模式配置
+  preferences.putBool("saEn", config.schedAirplaneEnabled);
+  preferences.putInt("saStartH", config.schedAirplaneStartHour);
+  preferences.putInt("saStartM", config.schedAirplaneStartMin);
+  preferences.putInt("saEndH", config.schedAirplaneEndHour);
+  preferences.putInt("saEndM", config.schedAirplaneEndMin);
   
   preferences.end();
-  esp_task_wdt_reset();
+  
   Serial.println("配置已保存");
 }
 
@@ -172,14 +173,15 @@ void loadConfig() {
   config.contentFilterIsWhitelist = preferences.getBool("cfWL", false);
   config.contentFilterList = preferences.getString("cfList", "");
   
-  // 加载定时过滤配置
-  config.schedFilterEnabled = preferences.getBool("sfEn", false);
-  config.schedFilterStartHour = preferences.getInt("sfStartH", 22);  // 默认晚上10点
-  config.schedFilterStartMin = preferences.getInt("sfStartM", 0);
-  config.schedFilterEndHour = preferences.getInt("sfEndH", 8);       // 默认早上8点
-  config.schedFilterEndMin = preferences.getInt("sfEndM", 0);
-  config.schedFilterModeA = preferences.getInt("sfModeA", 1);        // 默认时段A白名单
-  config.schedFilterModeB = preferences.getInt("sfModeB", 0);        // 默认时段B禁用
+  // 加载飞行模式
+  config.airplaneMode = preferences.getBool("airplane", false);
+  
+  // 加载定时飞行模式配置
+  config.schedAirplaneEnabled = preferences.getBool("saEn", false);
+  config.schedAirplaneStartHour = preferences.getInt("saStartH", 22);  // 默认晚上10点
+  config.schedAirplaneStartMin = preferences.getInt("saStartM", 0);
+  config.schedAirplaneEndHour = preferences.getInt("saEndH", 8);       // 默认早上8点
+  config.schedAirplaneEndMin = preferences.getInt("saEndM", 0);
   
   preferences.end();
   
@@ -454,4 +456,44 @@ void loadStats() {
   preferences.begin("sms_stats", false);
   preferences.putULong("boots", stats.bootCount);
   preferences.end();
+}
+
+// 设置飞行模式（开启/关闭蜂窝网络）
+void setAirplaneMode(bool enabled) {
+  config.airplaneMode = enabled;
+  saveConfig();
+  applyAirplaneMode();
+  Serial.println(enabled ? "飞行模式已开启" : "飞行模式已关闭");
+}
+
+// 应用飞行模式（发送 AT 命令控制 ML307R）
+void applyAirplaneMode() {
+    // 喂狗
+  
+  if (config.airplaneMode) {
+    // AT+CFUN=4 进入飞行模式（关闭射频，保留 SIM 卡访问）
+    Serial.println("[飞行模式] 发送 AT+CFUN=4...");
+    Serial1.println("AT+CFUN=4");
+  } else {
+    // AT+CFUN=1 恢复全功能模式
+    Serial.println("[飞行模式] 发送 AT+CFUN=1...");
+    Serial1.println("AT+CFUN=1");
+  }
+  
+  // 等待响应
+  unsigned long start = millis();
+  String resp = "";
+  while (millis() - start < 5000) {
+    while (Serial1.available()) {
+      char c = Serial1.read();
+      resp += c;
+      if (resp.indexOf("OK") >= 0 || resp.indexOf("ERROR") >= 0) {
+        Serial.println("[飞行模式] 模组响应: " + resp);
+        return;
+      }
+    }
+    
+    delay(10);
+  }
+  Serial.println("[飞行模式] 超时，响应: " + resp);
 }

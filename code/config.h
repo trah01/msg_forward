@@ -116,14 +116,15 @@ struct Config {
   bool contentFilterIsWhitelist;  // true=白名单(只转发包含关键词的), false=黑名单(拦截包含关键词的)
   String contentFilterList;       // 关键词列表，逗号分隔
   
-  // 定时过滤模式
-  bool schedFilterEnabled;        // 是否启用定时过滤
-  int schedFilterStartHour;       // 时段A开始时间 (0-23)
-  int schedFilterStartMin;        // 时段A开始分钟 (0-59)
-  int schedFilterEndHour;         // 时段A结束时间 (0-23)
-  int schedFilterEndMin;          // 时段A结束分钟 (0-59)
-  int schedFilterModeA;           // 时段A模式: 0=disabled, 1=whitelist, 2=blacklist
-  int schedFilterModeB;           // 时段B模式: 0=disabled, 1=whitelist, 2=blacklist
+  // 飞行模式（断开蜂窝网络，防止海外卡漫游检测）
+  bool airplaneMode;              // 当前飞行模式状态
+  
+  // 定时飞行模式
+  bool schedAirplaneEnabled;      // 是否启用定时飞行
+  int schedAirplaneStartHour;     // 开始时间 (0-23)
+  int schedAirplaneStartMin;      // 开始分钟 (0-59)
+  int schedAirplaneEndHour;       // 结束时间 (0-23)
+  int schedAirplaneEndMin;        // 结束分钟 (0-59)
 };
 
 // 默认Web管理账号密码
@@ -187,5 +188,7 @@ bool isNumberFiltered(const char* number);
 bool isContentFiltered(const char* content);
 void saveStats();
 void loadStats();
+void setAirplaneMode(bool enabled);
+void applyAirplaneMode();
 
 #endif // CONFIG_H

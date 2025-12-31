@@ -24,7 +24,8 @@ void handleSmsHistory();
 void handleStats();
 void handleFilterSave();
 void handleContentFilterSave();
-void handleSchedFilterSave();
+void handleAirplane();
+void handleSchedAirplane();
 
 // AT 命令
 String sendATCommand(const char* cmd, unsigned long timeout);
