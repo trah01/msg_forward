@@ -193,6 +193,7 @@ void sendToChannel(const PushChannel& channel, const char* sender, const char* m
       body.replace("{sender}", senderEscaped);
       body.replace("{message}", messageEscaped);
       body.replace("{timestamp}", timestampEscaped);
+      body.replace("{device}", mqttDeviceId);
       Serial.println("自定义: " + body);
       sendHttpRequest(channel.url, "POST", "application/json", body);
       break;

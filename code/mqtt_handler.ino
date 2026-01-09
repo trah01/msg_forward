@@ -120,7 +120,7 @@ void publishHaDiscoveryConfig() {
   uptimeConfig += "\"name\":\"运行时间\",";
   uptimeConfig += "\"unique_id\":\"" + nodeId + "_uptime\",";
   uptimeConfig += "\"state_topic\":\"" + mqttHaStatusTopic + "\",";
-  uptimeConfig += "\"value_template\":\"{{ (value_json.uptime | int / 3600) | round(1) }}\",";
+  uptimeConfig += "\"value_template\":\"{{ (value_json.uptime | default(0) | int / 3600) | round(1) }}\",";
   uptimeConfig += "\"unit_of_measurement\":\"小时\",";
   uptimeConfig += "\"icon\":\"mdi:clock-outline\",";
   uptimeConfig += deviceInfo;
@@ -209,37 +209,47 @@ void publishHaDiscoveryConfig() {
   contentFilterConfig += "}";
   mqttClient.publish(contentFilterConfigTopic.c_str(), contentFilterConfig.c_str(), true);
   
-  // 12. 定时飞行模式开关
-  String schedAirplaneStatusTopic = config.mqttPrefix + "/" + mqttDeviceId + "/sched_airplane/status";
-  String schedAirplaneSwitchTopic = haPrefix + "/switch/" + nodeId + "_sched_airplane/config";
-  String schedAirplaneSwitch = "{";
-  schedAirplaneSwitch += "\"name\":\"定时飞行\",";
-  schedAirplaneSwitch += "\"unique_id\":\"" + nodeId + "_sched_airplane\",";
-  schedAirplaneSwitch += "\"command_topic\":\"" + mqttTopicCmd + "\",";
-  schedAirplaneSwitch += "\"payload_on\":\"{\\\"action\\\":\\\"toggle_sched_airplane\\\",\\\"enabled\\\":\\\"true\\\"}\",";
-  schedAirplaneSwitch += "\"payload_off\":\"{\\\"action\\\":\\\"toggle_sched_airplane\\\",\\\"enabled\\\":\\\"false\\\"}\",";
-  schedAirplaneSwitch += "\"state_topic\":\"" + schedAirplaneStatusTopic + "\",";
-  schedAirplaneSwitch += "\"value_template\":\"{{ 'ON' if value_json.enabled else 'OFF' }}\",";
-  schedAirplaneSwitch += "\"icon\":\"mdi:clock-outline\",";
-  schedAirplaneSwitch += deviceInfo;
-  schedAirplaneSwitch += "}";
-  mqttClient.publish(schedAirplaneSwitchTopic.c_str(), schedAirplaneSwitch.c_str(), true);
+  // 12. 定时飞行状态二值传感器
+  String schedAirplaneBinaryConfigTopic = haPrefix + "/binary_sensor/" + nodeId + "_sched_airplane/config";
+  String schedAirplaneBinaryConfig = "{";
+  schedAirplaneBinaryConfig += "\"name\":\"定时飞行状态\",";
+  schedAirplaneBinaryConfig += "\"unique_id\":\"" + nodeId + "_sched_airplane_status\",";
+  schedAirplaneBinaryConfig += "\"state_topic\":\"" + mqttHaStatusTopic + "\",";
+  schedAirplaneBinaryConfig += "\"value_template\":\"{{ 'ON' if value_json.sched_airplane_enabled else 'OFF' }}\",";
+  schedAirplaneBinaryConfig += "\"icon\":\"mdi:clock-outline\",";
+  schedAirplaneBinaryConfig += deviceInfo;
+  schedAirplaneBinaryConfig += "}";
+  mqttClient.publish(schedAirplaneBinaryConfigTopic.c_str(), schedAirplaneBinaryConfig.c_str(), true);
   
-  // 15. 飞行模式开关
-  String airplaneStatusTopic = config.mqttPrefix + "/" + mqttDeviceId + "/airplane/status";
-  String airplaneSwitchTopic = haPrefix + "/switch/" + nodeId + "_airplane/config";
-  String airplaneSwitch = "{";
-  airplaneSwitch += "\"name\":\"飞行模式\",";
-  airplaneSwitch += "\"unique_id\":\"" + nodeId + "_airplane\",";
-  airplaneSwitch += "\"command_topic\":\"" + mqttTopicCmd + "\",";
-  airplaneSwitch += "\"payload_on\":\"{\\\"action\\\":\\\"set_airplane_mode\\\",\\\"enabled\\\":\\\"true\\\"}\",";
-  airplaneSwitch += "\"payload_off\":\"{\\\"action\\\":\\\"set_airplane_mode\\\",\\\"enabled\\\":\\\"false\\\"}\",";
-  airplaneSwitch += "\"state_topic\":\"" + airplaneStatusTopic + "\",";
-  airplaneSwitch += "\"value_template\":\"{{ 'ON' if value_json.enabled else 'OFF' }}\",";
-  airplaneSwitch += "\"icon\":\"mdi:airplane\",";
-  airplaneSwitch += deviceInfo;
-  airplaneSwitch += "}";
-  mqttClient.publish(airplaneSwitchTopic.c_str(), airplaneSwitch.c_str(), true);
+  // 13. 定时飞行控制按钮
+  String schedAirplaneOnButtonTopic = haPrefix + "/button/" + nodeId + "_sched_airplane_on/config";
+  String schedAirplaneOnButton = "{\"name\":\"启用定时飞行\",\"unique_id\":\"" + nodeId + "_sched_airplane_on\",\"command_topic\":\"" + mqttTopicCmd + "\",\"payload_press\":\"{\\\"action\\\":\\\"toggle_sched_airplane\\\",\\\"enabled\\\":\\\"true\\\"}\",\"icon\":\"mdi:clock-check\"," + deviceInfo + "}";
+  mqttClient.publish(schedAirplaneOnButtonTopic.c_str(), schedAirplaneOnButton.c_str(), true);
+  
+  String schedAirplaneOffButtonTopic = haPrefix + "/button/" + nodeId + "_sched_airplane_off/config";
+  String schedAirplaneOffButton = "{\"name\":\"禁用定时飞行\",\"unique_id\":\"" + nodeId + "_sched_airplane_off\",\"command_topic\":\"" + mqttTopicCmd + "\",\"payload_press\":\"{\\\"action\\\":\\\"toggle_sched_airplane\\\",\\\"enabled\\\":\\\"false\\\"}\",\"icon\":\"mdi:clock-remove\"," + deviceInfo + "}";
+  mqttClient.publish(schedAirplaneOffButtonTopic.c_str(), schedAirplaneOffButton.c_str(), true);
+  
+  // 15. 飞行模式状态二值传感器
+  String airplaneBinaryConfigTopic = haPrefix + "/binary_sensor/" + nodeId + "_airplane/config";
+  String airplaneBinaryConfig = "{";
+  airplaneBinaryConfig += "\"name\":\"飞行模式状态\",";
+  airplaneBinaryConfig += "\"unique_id\":\"" + nodeId + "_airplane_status\",";
+  airplaneBinaryConfig += "\"state_topic\":\"" + mqttHaStatusTopic + "\",";
+  airplaneBinaryConfig += "\"value_template\":\"{{ 'ON' if value_json.airplane_mode else 'OFF' }}\",";
+  airplaneBinaryConfig += "\"icon\":\"mdi:airplane\",";
+  airplaneBinaryConfig += deviceInfo;
+  airplaneBinaryConfig += "}";
+  mqttClient.publish(airplaneBinaryConfigTopic.c_str(), airplaneBinaryConfig.c_str(), true);
+  
+  // 16. 飞行模式控制按钮
+  String airplaneOnButtonTopic = haPrefix + "/button/" + nodeId + "_airplane_on/config";
+  String airplaneOnButton = "{\"name\":\"开启飞行模式\",\"unique_id\":\"" + nodeId + "_airplane_on\",\"command_topic\":\"" + mqttTopicCmd + "\",\"payload_press\":\"{\\\"action\\\":\\\"set_airplane_mode\\\",\\\"enabled\\\":\\\"true\\\"}\",\"icon\":\"mdi:airplane\"," + deviceInfo + "}";
+  mqttClient.publish(airplaneOnButtonTopic.c_str(), airplaneOnButton.c_str(), true);
+  
+  String airplaneOffButtonTopic = haPrefix + "/button/" + nodeId + "_airplane_off/config";
+  String airplaneOffButton = "{\"name\":\"关闭飞行模式\",\"unique_id\":\"" + nodeId + "_airplane_off\",\"command_topic\":\"" + mqttTopicCmd + "\",\"payload_press\":\"{\\\"action\\\":\\\"set_airplane_mode\\\",\\\"enabled\\\":\\\"false\\\"}\",\"icon\":\"mdi:airplane-off\"," + deviceInfo + "}";
+  mqttClient.publish(airplaneOffButtonTopic.c_str(), airplaneOffButton.c_str(), true);
   
   Serial.println("HA自动发现配置已发布");
 }
@@ -249,15 +259,23 @@ void publishAirplaneModeStatus() {
   if (!config.mqttEnabled || !mqttClient.connected()) return;
   
   String json = "{";
-  json += "\"enabled\":" + String(config.airplaneMode ? "true" : "false") + ",";
-  json += "\"status\":\"" + String(config.airplaneMode ? "on" : "off") + "\"";
+  json += "\"status\":\"online\",";
+  json += "\"device\":\"" + mqttDeviceId + "\",";
+  json += "\"uptime\":" + String(millis() / 1000) + ",";
+  json += "\"airplane_mode\":" + String(config.airplaneMode ? "true" : "false") + ",";
+  json += "\"sched_airplane_enabled\":" + String(config.schedAirplaneEnabled ? "true" : "false");
   json += "}";
   
-  // 发布到飞行模式状态主题
+  // 1. 发布到飞行模式专用主题 (保持兼容性)
   String airplaneTopic = config.mqttPrefix + "/" + mqttDeviceId + "/airplane/status";
   mqttClient.publish(airplaneTopic.c_str(), json.c_str(), true);
   
-  Serial.println("已发布飞行模式状态: " + String(config.airplaneMode ? "开启" : "关闭"));
+  // 2. 同步发布到 HA 状态主题 (让 HA 里的开关立即更新)
+  if (config.mqttHaDiscovery) {
+    mqttClient.publish(mqttHaStatusTopic.c_str(), json.c_str(), true);
+  }
+  
+  Serial.println("已同步发布飞行模式状态: " + String(config.airplaneMode ? "开启" : "关闭"));
 }
 
 // MQTT 重连函数
@@ -758,7 +776,10 @@ void publishMqttStatus(const char* status) {
   String json = "{";
   json += "\"status\":\"" + String(status) + "\",";
   json += "\"device\":\"" + mqttDeviceId + "\",";
-  json += "\"ip\":\"" + WiFi.localIP().toString() + "\"";
+  json += "\"ip\":\"" + WiFi.localIP().toString() + "\",";
+  json += "\"uptime\":" + String(millis() / 1000) + ",";
+  json += "\"airplane_mode\":" + String(config.airplaneMode ? "true" : "false") + ",";
+  json += "\"sched_airplane_enabled\":" + String(config.schedAirplaneEnabled ? "true" : "false");
   json += "}";
   
   // 发布到用户自定义主题
@@ -848,6 +869,8 @@ void publishMqttDeviceStatus() {
   json += "\"wifi_status\":\"" + wifiStatus + "\",";
   json += "\"wifi_ssid\":\"" + WiFi.SSID() + "\",";
   json += "\"uptime\":" + String(millis() / 1000) + ",";
+  json += "\"airplane_mode\":" + String(config.airplaneMode ? "true" : "false") + ",";
+  json += "\"sched_airplane_enabled\":" + String(config.schedAirplaneEnabled ? "true" : "false") + ",";
   json += "\"free_heap\":" + String(ESP.getFreeHeap()) + ",";
   json += "\"lte_rsrp\":" + String(rsrpDbm) + ",";
   json += "\"lte_rsrq\":" + String(rsrqDb) + ",";

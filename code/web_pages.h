@@ -423,7 +423,13 @@ const char* htmlPage = R"rawliteral(<!DOCTYPE html><html><head><meta charset="UT
           </div>
           <div class="fg"><label>URL</label><input name="push0url" value="%CH0_URL%"></div>
           <div id="k10" style="display:%CH0_K1D%"><div class="fg"><label id="k1l0">%CH0_K1L%</label><input name="push0k1" value="%CH0_K1%"></div></div>
-          <div id="cf0" style="display:%CH0_CFD%"><div class="fg"><label>Body模板</label><textarea name="push0body" rows="3">%CH0_BODY%</textarea></div></div>
+          <div id="cf0" style="display:%CH0_CFD%">
+            <div class="fg">
+              <label>Body 模板 (JSON)</label>
+              <textarea name="push0body" rows="4" placeholder='{"msg": "{message}", "from": "{sender}"}'>%CH0_BODY%</textarea>
+              <div style="font-size:0.75em;color:var(--text-light);margin-top:4px">支持变量: {sender}, {message}, {timestamp}, {device}</div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="card" style="border:1px solid #e2e8f0;padding:12px;margin-bottom:8px;box-shadow:none">
@@ -448,7 +454,13 @@ const char* htmlPage = R"rawliteral(<!DOCTYPE html><html><head><meta charset="UT
           </div>
           <div class="fg"><label>URL</label><input name="push1url" value="%CH1_URL%"></div>
           <div id="k11" style="display:%CH1_K1D%"><div class="fg"><label id="k1l1">%CH1_K1L%</label><input name="push1k1" value="%CH1_K1%"></div></div>
-          <div id="cf1" style="display:%CH1_CFD%"><div class="fg"><label>Body模板</label><textarea name="push1body" rows="3">%CH1_BODY%</textarea></div></div>
+          <div id="cf1" style="display:%CH1_CFD%">
+            <div class="fg">
+              <label>Body 模板 (JSON)</label>
+              <textarea name="push1body" rows="4" placeholder='{"msg": "{message}", "from": "{sender}"}'>%CH1_BODY%</textarea>
+              <div style="font-size:0.75em;color:var(--text-light);margin-top:4px">支持变量: {sender}, {message}, {timestamp}, {device}</div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="card" style="border:1px solid #e2e8f0;padding:12px;margin-bottom:8px;box-shadow:none">
@@ -473,7 +485,13 @@ const char* htmlPage = R"rawliteral(<!DOCTYPE html><html><head><meta charset="UT
           </div>
           <div class="fg"><label>URL</label><input name="push2url" value="%CH2_URL%"></div>
           <div id="k12" style="display:%CH2_K1D%"><div class="fg"><label id="k1l2">%CH2_K1L%</label><input name="push2k1" value="%CH2_K1%"></div></div>
-          <div id="cf2" style="display:%CH2_CFD%"><div class="fg"><label>Body模板</label><textarea name="push2body" rows="3">%CH2_BODY%</textarea></div></div>
+          <div id="cf2" style="display:%CH2_CFD%">
+            <div class="fg">
+              <label>Body 模板 (JSON)</label>
+              <textarea name="push2body" rows="4" placeholder='{"msg": "{message}", "from": "{sender}"}'>%CH2_BODY%</textarea>
+              <div style="font-size:0.75em;color:var(--text-light);margin-top:4px">支持变量: {sender}, {message}, {timestamp}, {device}</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
