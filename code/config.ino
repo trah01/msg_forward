@@ -58,6 +58,7 @@ void saveConfig() {
   preferences.putInt("timerInt", config.timerInterval);
   preferences.putString("timerPhone", config.timerPhone);
   preferences.putString("timerMsg", config.timerMessage);
+  preferences.putString("timerStart", config.timerStartDate);
   
   
   yield();
@@ -148,6 +149,7 @@ void loadConfig() {
   config.timerInterval = preferences.getInt("timerInt", 30);
   config.timerPhone = preferences.getString("timerPhone", "");
   config.timerMessage = preferences.getString("timerMsg", "保号短信");
+  config.timerStartDate = preferences.getString("timerStart", "");
   timerIntervalSec = (unsigned long)config.timerInterval * 24UL * 60UL * 60UL;
   
   // 加载 MQTT 配置

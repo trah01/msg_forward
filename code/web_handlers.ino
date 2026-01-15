@@ -9,6 +9,11 @@ void setNoCacheHeaders() {
   server.sendHeader("Expires", "0");
 }
 
+// 设置允许缓存的 HTTP 头 (用于静态资源)
+void setCacheHeaders(int maxAge) {
+  server.sendHeader("Cache-Control", "public, max-age=" + String(maxAge));
+}
+
 // 检查 HTTP Basic 认证
 bool checkAuth() {
   if (!server.authenticate(config.webUser.c_str(), config.webPass.c_str())) {
@@ -16,6 +21,22 @@ bool checkAuth() {
     return false;
   }
   return true;
+}
+
+// 处理 CSS 请求 (独立路由，可缓存)
+void handleStyleCss() {
+  setCacheHeaders(86400);  // 缓存 1 天
+  server.send_P(200, "text/css", CSS_CONTENT);
+}
+
+// 发送 PROGMEM 字符串并替换占位符
+void sendChunkWithReplace(const char* progmemStr, std::function<String(const String&)> replacer) {
+  String chunk = FPSTR(progmemStr);
+  if (replacer) {
+    chunk = replacer(chunk);
+  }
+  server.sendContent(chunk);
+  yield();
 }
 
 // 发送 AT 命令并获取响应
@@ -35,7 +56,6 @@ String sendATCommand(const char* cmd, unsigned long timeout) {
         return resp;
       }
     }
-      // 喂狗
   }
   return resp;
 }
@@ -53,7 +73,6 @@ bool sendATandWaitOK(const char* cmd, unsigned long timeout) {
       if (resp.indexOf("OK") >= 0) return true;
       if (resp.indexOf("ERROR") >= 0) return false;
     }
-      // 喂狗
   }
   return false;
 }
@@ -70,7 +89,6 @@ bool waitCGATT1() {
       if (resp.indexOf("+CGATT: 1") >= 0) return true;
       if (resp.indexOf("+CGATT: 0") >= 0) return false;
     }
-      // 喂狗
   }
   return false;
 }
@@ -84,182 +102,164 @@ void resetModule() {
 
 // LED 闪烁
 void blink_short(unsigned long gap_time) {
-    // 闪烁时喂狗
   digitalWrite(LED_BUILTIN, LOW);
   delay(50);
   digitalWrite(LED_BUILTIN, HIGH);
   delay(gap_time);
 }
 
-// 处理配置页面请求
+// 处理配置页面请求 (使用 chunked transfer 分块发送)
 void handleRoot() {
   if (!checkAuth()) return;
 
-  // 喂狗防止处理时间过长
+  setNoCacheHeaders();
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server.send(200, "text/html", "");
   
-
-  // 预分配足够的内存（htmlPage ~52KB + commonCss ~10KB + 其他替换 ~5KB）
-  String html;
-  html.reserve(81920);  // 预分配 80KB
-  html = htmlPage;
+  // 发送 HTML 头部
+  server.sendContent_P(htmlPage);
+  yield();
   
-  html.replace("%COMMON_CSS%", commonCss);
-  // html.replace("%COMMON_JS%", commonJs); // JS 已合并
-  html.replace("%IP%", WiFi.localIP().toString());
-
-    // 每处理一部分喂狗
-
-  // 1. MQTT 状态 (概览页用)
+  // 发送概览页 (带替换)
+  String overview = FPSTR(HTML_PAGE_OVERVIEW);
+  overview.replace("%IP%", WiFi.localIP().toString());
   String mqttStatusText = config.mqttEnabled ? (mqttClient.connected() ? "已连接" : "未连接") : "未启用";
-  String mqttClass = config.mqttEnabled ? (mqttClient.connected() ? "b-ok" : "b-err") : "b-wait";
-  html.replace("%MQTT_STATUS%", mqttStatusText);
-  html.replace("%MQTT_CLASS%", mqttClass);
-  html.replace("%MQTT_PREFIX%", config.mqttPrefix);
-  html.replace("%MQTT_ENABLED%", config.mqttEnabled ? "true" : "false");
-
-  // MQTT 主题列表
+  overview.replace("%MQTT_STATUS%", mqttStatusText);
   String mqttTopicsHtml = "";
   if (config.mqttEnabled && config.mqttServer.length() > 0) {
     mqttTopicsHtml = mqttTopicStatus + "<br>" + mqttTopicSmsReceived;
   } else {
     mqttTopicsHtml = "未配置";
   }
-  html.replace("%MQTT_TOPICS%", mqttTopicsHtml);
-
-  // 2. 基础配置填写
-  html.replace("%WEB_USER%", config.webUser);
-  html.replace("%WEB_PASS%", config.webPass);
-
-    // 每处理一部分喂狗
-
-  // 3. SMTP 配置
-  html.replace("%SMTP_EN_VAL%", config.emailEnabled ? "true" : "false");
-  html.replace("%SMTP_EN_SW%", config.emailEnabled ? "on" : "");
-  html.replace("%SMTP_DISP%", config.emailEnabled ? "block" : "none");
-  html.replace("%SMTP_SERVER%", config.smtpServer);
-  html.replace("%SMTP_PORT%", String(config.smtpPort));
-  html.replace("%SMTP_USER%", config.smtpUser);
-  html.replace("%SMTP_PASS%", config.smtpPass);
-  html.replace("%SMTP_SEND_TO%", config.smtpSendTo);
-
-  // 4. MQTT 配置
-  html.replace("%MQTT_EN_VAL%", config.mqttEnabled ? "true" : "false");
-  html.replace("%MQTT_EN_SW%", config.mqttEnabled ? "on" : "");
-  html.replace("%MQTT_DISP%", config.mqttEnabled ? "block" : "none");
-  html.replace("%MQTT_SERVER%", config.mqttServer);
-  html.replace("%MQTT_PORT%", String(config.mqttPort));
-  html.replace("%MQTT_USER%", config.mqttUser);
-  html.replace("%MQTT_PASS%", config.mqttPass);
-
-  html.replace("%MQTT_CO_VAL%", config.mqttControlOnly ? "true" : "false");
-  html.replace("%MQTT_CO_SW%", config.mqttControlOnly ? "on" : "");
-
-  // 4.5 Home Assistant 自动发现配置
-  html.replace("%MQTT_HA_VAL%", config.mqttHaDiscovery ? "true" : "false");
-  html.replace("%MQTT_HA_SW%", config.mqttHaDiscovery ? "on" : "");
-  html.replace("%MQTT_HA_DISP%", config.mqttHaDiscovery ? "block" : "none");
-  html.replace("%MQTT_HA_PREFIX%", config.mqttHaPrefix.length() > 0 ? config.mqttHaPrefix : "homeassistant");
-
-    // 每处理一部分喂狗
-
-  // 5. 黑白名单配置 (Js 对象初始化)
-  html.replace("%FILTER_EN_VAL%", config.filterEnabled ? "true" : "false");
-  html.replace("%FILTER_EN_BOOL%", config.filterEnabled ? "true" : "false"); // JS bool
-  html.replace("%FILTER_WL_BOOL%", config.filterIsWhitelist ? "true" : "false"); // JS bool
-  html.replace("%FILTER_WL_VAL%", config.filterIsWhitelist ? "true" : "false"); // hidden input value
-
-  // 处理 filterList 换行符，避免破坏 JS 字符串
-  String safeFilterList = config.filterList;
-  safeFilterList.replace("\n", "");
-  safeFilterList.replace("\r", "");
-  html.replace("%FILTER_LIST%", safeFilterList);
-
-  // 5.5 内容关键词过滤配置
-  html.replace("%CF_EN_VAL%", config.contentFilterEnabled ? "true" : "false");
-  html.replace("%CF_EN_BOOL%", config.contentFilterEnabled ? "true" : "false");
-  html.replace("%CF_WL_BOOL%", config.contentFilterIsWhitelist ? "true" : "false");
-  html.replace("%CF_WL_VAL%", config.contentFilterIsWhitelist ? "true" : "false");
-
-  String safeCfList = config.contentFilterList;
-  safeCfList.replace("\n", "");
-  safeCfList.replace("\r", "");
-  html.replace("%CF_LIST%", safeCfList);
-
-    // 每处理一部分喂狗
-
-  // 6. 定时任务配置 (Js 对象初始化)
-  html.replace("%TIMER_EN_VAL%", config.timerEnabled ? "true" : "false");
-  html.replace("%TIMER_EN_BOOL%", config.timerEnabled ? "true" : "false"); // JS bool
-  html.replace("%TIMER_TP%", String(config.timerType));
-  html.replace("%TIMER_INT%", String(config.timerInterval));
-  html.replace("%TIMER_PH%", config.timerPhone);
-  html.replace("%TIMER_MS%", config.timerMessage);
-
-  // 计算剩余时间
-  unsigned long remainSec = 0;
-  if (config.timerEnabled && timerIntervalSec > 0) {
-    unsigned long elapsedSec = (millis() - lastTimerExec) / 1000;
-    if (elapsedSec < timerIntervalSec) {
-      remainSec = timerIntervalSec - elapsedSec;
-    }
-  }
-  html.replace("%TIMER_RM%", String(remainSec));
+  overview.replace("%MQTT_TOPICS%", mqttTopicsHtml);
+  server.sendContent(overview);
+  yield();
   
-  // 飞行模式状态
-  html.replace("%AP_SW%", config.airplaneMode ? "on" : "");
-  html.replace("%AP_BADGE%", config.airplaneMode ? "b-warn" : "b-ok");
-  html.replace("%AP_STATUS%", config.airplaneMode ? "已开启" : "已关闭");
+  // 发送控制页 (带替换)
+  String control = FPSTR(HTML_PAGE_CONTROL);
+  control.replace("%AP_SW%", config.airplaneMode ? "on" : "");
+  control.replace("%AP_BADGE%", config.airplaneMode ? "b-warn" : "b-ok");
+  control.replace("%AP_STATUS%", config.airplaneMode ? "已开启" : "已关闭");
+  control.replace("%SA_SW%", config.schedAirplaneEnabled ? "on" : "");
+  control.replace("%SA_EN%", config.schedAirplaneEnabled ? "true" : "false");
+  control.replace("%SA_DISP%", config.schedAirplaneEnabled ? "" : "display:none");
+  control.replace("%SA_SH%", String(config.schedAirplaneStartHour));
+  control.replace("%SA_SM%", String(config.schedAirplaneStartMin));
+  control.replace("%SA_EH%", String(config.schedAirplaneEndHour));
+  control.replace("%SA_EM%", String(config.schedAirplaneEndMin));
+  server.sendContent(control);
+  yield();
   
-  // 定时飞行模式
-  html.replace("%SA_SW%", config.schedAirplaneEnabled ? "on" : "");
-  html.replace("%SA_EN%", config.schedAirplaneEnabled ? "true" : "false");
-  html.replace("%SA_DISP%", config.schedAirplaneEnabled ? "" : "display:none");
-  html.replace("%SA_SH%", String(config.schedAirplaneStartHour));
-  html.replace("%SA_SM%", String(config.schedAirplaneStartMin));
-  html.replace("%SA_EH%", String(config.schedAirplaneEndHour));
-  html.replace("%SA_EM%", String(config.schedAirplaneEndMin));
-
-    // 每处理一部分喂狗
-
-  // 7. WiFi 网络配置
+  // 发送历史页
+  server.sendContent_P(HTML_PAGE_HISTORY);
+  yield();
+  
+  // 发送配置页 Part1 (WiFi + SMTP)
+  String cfg1 = FPSTR(HTML_PAGE_CONFIG1);
   String currentSsid = WiFi.SSID();
   for (int i = 0; i < MAX_WIFI_NETWORKS; i++) {
     String idx = String(i);
     bool isCurrent = config.wifiNetworks[i].ssid.length() > 0 && config.wifiNetworks[i].ssid == currentSsid;
-    html.replace("%WF" + idx + "_BORDER%", isCurrent ? "var(--success)" : "#e2e8f0");
-    html.replace("%WF" + idx + "_CUR%", isCurrent ? "<span class=\"badge b-ok\">当前</span>" : "");
-    html.replace("%WF" + idx + "_SW%", config.wifiNetworks[i].enabled ? "on" : "");
-    html.replace("%WF" + idx + "_EN%", config.wifiNetworks[i].enabled ? "true" : "false");
-    html.replace("%WF" + idx + "_SSID%", config.wifiNetworks[i].ssid);
-    html.replace("%WF" + idx + "_HINT%", config.wifiNetworks[i].password.length() > 0 ? "（已保存，留空则保留）" : "WiFi密码");
+    cfg1.replace("%WF" + idx + "_BORDER%", isCurrent ? "var(--success)" : "#e2e8f0");
+    cfg1.replace("%WF" + idx + "_CUR%", isCurrent ? "<span class=\"badge b-ok\">当前</span>" : "");
+    cfg1.replace("%WF" + idx + "_SW%", config.wifiNetworks[i].enabled ? "on" : "");
+    cfg1.replace("%WF" + idx + "_EN%", config.wifiNetworks[i].enabled ? "true" : "false");
+    cfg1.replace("%WF" + idx + "_SSID%", config.wifiNetworks[i].ssid);
+    cfg1.replace("%WF" + idx + "_HINT%", config.wifiNetworks[i].password.length() > 0 ? "（已保存，留空则保留）" : "WiFi密码");
   }
-
-  // 8. 推送通道配置
+  cfg1.replace("%WEB_USER%", config.webUser);
+  cfg1.replace("%WEB_PASS%", config.webPass);
+  cfg1.replace("%SMTP_EN_VAL%", config.emailEnabled ? "true" : "false");
+  cfg1.replace("%SMTP_EN_SW%", config.emailEnabled ? "on" : "");
+  cfg1.replace("%SMTP_DISP%", config.emailEnabled ? "block" : "none");
+  cfg1.replace("%SMTP_SERVER%", config.smtpServer);
+  cfg1.replace("%SMTP_PORT%", String(config.smtpPort));
+  cfg1.replace("%SMTP_USER%", config.smtpUser);
+  cfg1.replace("%SMTP_PASS%", config.smtpPass);
+  cfg1.replace("%SMTP_SEND_TO%", config.smtpSendTo);
+  server.sendContent(cfg1);
+  yield();
+  
+  // 发送配置页 Part2 (MQTT)
+  String cfg2 = FPSTR(HTML_PAGE_CONFIG2);
+  cfg2.replace("%MQTT_EN_VAL%", config.mqttEnabled ? "true" : "false");
+  cfg2.replace("%MQTT_EN_SW%", config.mqttEnabled ? "on" : "");
+  cfg2.replace("%MQTT_DISP%", config.mqttEnabled ? "block" : "none");
+  cfg2.replace("%MQTT_SERVER%", config.mqttServer);
+  cfg2.replace("%MQTT_PORT%", String(config.mqttPort));
+  cfg2.replace("%MQTT_USER%", config.mqttUser);
+  cfg2.replace("%MQTT_PASS%", config.mqttPass);
+  cfg2.replace("%MQTT_PREFIX%", config.mqttPrefix);
+  cfg2.replace("%MQTT_CO_VAL%", config.mqttControlOnly ? "true" : "false");
+  cfg2.replace("%MQTT_CO_SW%", config.mqttControlOnly ? "on" : "");
+  cfg2.replace("%MQTT_HA_VAL%", config.mqttHaDiscovery ? "true" : "false");
+  cfg2.replace("%MQTT_HA_SW%", config.mqttHaDiscovery ? "on" : "");
+  cfg2.replace("%MQTT_HA_DISP%", config.mqttHaDiscovery ? "block" : "none");
+  cfg2.replace("%MQTT_HA_PREFIX%", config.mqttHaPrefix.length() > 0 ? config.mqttHaPrefix : "homeassistant");
+  server.sendContent(cfg2);
+  yield();
+  
+  // 发送配置页 Part3 (推送通道)
+  String cfg3 = FPSTR(HTML_PAGE_CONFIG3);
   for (int i = 0; i < MAX_PUSH_CHANNELS; i++) {
     String idx = String(i);
     int tp = (int)config.pushChannels[i].type;
-    html.replace("%CH" + idx + "_SW%", config.pushChannels[i].enabled ? "on" : "");
-    html.replace("%CH" + idx + "_EN%", config.pushChannels[i].enabled ? "true" : "false");
-    html.replace("%CH" + idx + "_NAME%", config.pushChannels[i].name);
-    html.replace("%CH" + idx + "_URL%", config.pushChannels[i].url);
-    html.replace("%CH" + idx + "_K1%", config.pushChannels[i].key1);
-    html.replace("%CH" + idx + "_BODY%", config.pushChannels[i].customBody);
-    // 类型选中
+    cfg3.replace("%CH" + idx + "_SW%", config.pushChannels[i].enabled ? "on" : "");
+    cfg3.replace("%CH" + idx + "_EN%", config.pushChannels[i].enabled ? "true" : "false");
+    cfg3.replace("%CH" + idx + "_NAME%", config.pushChannels[i].name);
+    cfg3.replace("%CH" + idx + "_URL%", config.pushChannels[i].url);
+    cfg3.replace("%CH" + idx + "_K1%", config.pushChannels[i].key1);
+    cfg3.replace("%CH" + idx + "_BODY%", config.pushChannels[i].customBody);
     for (int t = 1; t <= 7; t++) {
-      html.replace("%CH" + idx + "_T" + String(t) + "%", tp == t ? "selected" : "");
+      cfg3.replace("%CH" + idx + "_T" + String(t) + "%", tp == t ? "selected" : "");
     }
-    // Key1 显示条件 (Telegram=5 或 钉钉=7)
     bool showK1 = (tp == 5 || tp == 7);
-    html.replace("%CH" + idx + "_K1D%", showK1 ? "block" : "none");
-    html.replace("%CH" + idx + "_K1L%", tp == 5 ? "Chat ID" : "加签密钥 (可选)");
-    // 自定义模板显示条件 (type=4)
-    html.replace("%CH" + idx + "_CFD%", tp == 4 ? "block" : "none");
+    cfg3.replace("%CH" + idx + "_K1D%", showK1 ? "block" : "none");
+    cfg3.replace("%CH" + idx + "_K1L%", tp == 5 ? "Chat ID" : "加签密钥 (可选)");
+    cfg3.replace("%CH" + idx + "_CFD%", tp == 4 ? "block" : "none");
   }
-
-    // 发送前最后一次喂狗
-
-  setNoCacheHeaders();
-  server.send(200, "text/html", html);
+  server.sendContent(cfg3);
+  yield();
+  
+  // 发送配置页 Part4 (过滤 + 定时任务)
+  String cfg4 = FPSTR(HTML_PAGE_CONFIG4);
+  cfg4.replace("%FILTER_EN_VAL%", config.filterEnabled ? "true" : "false");
+  cfg4.replace("%FILTER_WL_VAL%", config.filterIsWhitelist ? "true" : "false");
+  cfg4.replace("%CF_EN_VAL%", config.contentFilterEnabled ? "true" : "false");
+  cfg4.replace("%CF_WL_VAL%", config.contentFilterIsWhitelist ? "true" : "false");
+  cfg4.replace("%TIMER_EN_VAL%", config.timerEnabled ? "true" : "false");
+  server.sendContent(cfg4);
+  yield();
+  
+  // 发送 JavaScript Part1
+  String js1 = FPSTR(HTML_JS_PART1);
+  js1.replace("%FILTER_EN_BOOL%", config.filterEnabled ? "true" : "false");
+  js1.replace("%FILTER_WL_BOOL%", config.filterIsWhitelist ? "true" : "false");
+  String safeFilterList = config.filterList;
+  safeFilterList.replace("\n", "");
+  safeFilterList.replace("\r", "");
+  js1.replace("%FILTER_LIST%", safeFilterList);
+  js1.replace("%CF_EN_BOOL%", config.contentFilterEnabled ? "true" : "false");
+  js1.replace("%CF_WL_BOOL%", config.contentFilterIsWhitelist ? "true" : "false");
+  String safeCfList = config.contentFilterList;
+  safeCfList.replace("\n", "");
+  safeCfList.replace("\r", "");
+  js1.replace("%CF_LIST%", safeCfList);
+  js1.replace("%TIMER_EN_BOOL%", config.timerEnabled ? "true" : "false");
+  js1.replace("%TIMER_TP%", String(config.timerType));
+  js1.replace("%TIMER_INT%", String(config.timerInterval));
+  js1.replace("%TIMER_PH%", config.timerPhone);
+  js1.replace("%TIMER_MS%", config.timerMessage);
+  js1.replace("%TIMER_START%", config.timerStartDate);
+  server.sendContent(js1);
+  yield();
+  
+  // 发送 JavaScript Part2 和 Part3
+  server.sendContent_P(HTML_JS_PART2);
+  yield();
+  server.sendContent_P(HTML_JS_PART3);
+  
+  server.sendContent("");  // 结束 chunked 传输
 }
 
 // 处理工具箱页面请求 (重定向到首页)
@@ -271,8 +271,6 @@ void handleToolsPage() {
 // 处理保存配置请求 (全量保存)
 void handleSave() {
   if (!checkAuth()) return;
-  
-  // 喂狗防止超时
   
   yield();
   
@@ -374,10 +372,9 @@ void handleSave() {
       if (config.timerInterval < 1) config.timerInterval = 1;
       config.timerPhone = server.arg("timerPhone");
       config.timerMessage = server.arg("timerMessage");
+      config.timerStartDate = server.arg("timerStartDate");
       timerIntervalSec = (unsigned long)config.timerInterval * 24UL * 60UL * 60UL;
   }
-  
-  // 喂狗并保存配置
   
   yield();
   saveConfig();
@@ -483,11 +480,17 @@ void handleTimer() {
       config.timerMessage = body.substring(msgIdx+11, end);
   }
   
+  // startDate (起始日期 YYYY-MM-DD)
+  int startIdx = body.indexOf("\"startDate\":\"");
+  if (startIdx > 0) {
+      int end = body.indexOf("\"", startIdx+13);
+      config.timerStartDate = body.substring(startIdx+13, end);
+  }
+  
   timerIntervalSec = (unsigned long)config.timerInterval * 24UL * 60UL * 60UL;
-  lastTimerExec = millis();
   saveConfig();
   
-  String json = "{\"success\":true,\"remain\":" + String(timerIntervalSec) + "}";
+  String json = "{\"success\":true}";
   server.send(200, "application/json", json);
 }
 

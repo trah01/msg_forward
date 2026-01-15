@@ -9,8 +9,10 @@ extern WebServer server;
 
 // Web 页面处理
 void setNoCacheHeaders();
+void setCacheHeaders(int maxAge);
 bool checkAuth();
 void handleRoot();
+void handleStyleCss();  // CSS 独立路由
 void handleToolsPage();
 void handleQuery();
 void handleSendSms();

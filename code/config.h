@@ -91,6 +91,7 @@ struct Config {
   int timerInterval;
   String timerPhone;
   String timerMessage;
+  String timerStartDate;  // 起始日期 YYYY-MM-DD 格式
   
   // MQTT 配置
   bool mqttEnabled;

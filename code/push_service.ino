@@ -103,13 +103,11 @@ int sendHttpRequest(const String& url, const String& method, const String& conte
   }
   
   int httpCode;
-   // 发送前喂狗
   if (method == "GET") {
     httpCode = http.GET();
   } else {
     httpCode = http.POST(body);
   }
-   // 收到响应后喂狗
   
   if (httpCode > 0) {
     Serial.printf("HTTP响应码: %d\n", httpCode);
@@ -304,7 +302,6 @@ void sendSMSToServer(const char* sender, const char* message, const char* timest
   Serial.println("\n=== 开始多通道推送 ===");
   for (int i = 0; i < MAX_PUSH_CHANNELS; i++) {
     if (isPushChannelValid(config.pushChannels[i])) {
-       // 每个通道推送前喂狗
       sendToChannel(config.pushChannels[i], sender, message, timestamp);
       delay(100); // 短暂延迟避免请求过快
     }
@@ -340,11 +337,10 @@ void sendEmailNotification(const char* subject, const char* body) {
     msg.headers.add(rfc822_subject, subject);
     msg.text.body(body);
     configTime(0, 0, "ntp.ntsc.ac.cn");
-    // 等待 NTP 同步，最多 10 秒，防止看门狗超时
+    // 等待 NTP 同步，最多 10 秒
     unsigned long ntpStart = millis();
     while (time(nullptr) < 100000 && millis() - ntpStart < 10000) {
       delay(100);
-        // 喂狗
     }
     msg.timestamp = time(nullptr);
     smtp.send(msg);
@@ -352,4 +348,32 @@ void sendEmailNotification(const char* subject, const char* body) {
   } else {
     Serial.println("邮件服务器连接失败");
   }
+}
+
+// 推送定时任务执行通知
+void sendTimerTaskNotification(const char* taskType) {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    Serial.println("获取时间失败，跳过定时任务通知");
+    return;
+  }
+  
+  // 格式化时间: YYYY年MM月DD日 HH:MM:SS
+  char timeBuf[32];
+  snprintf(timeBuf, sizeof(timeBuf), "%04d年%02d月%02d日 %02d:%02d:%02d",
+    timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+    timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+  
+  // 构建通知内容
+  String message = "在 " + String(timeBuf) + " 执行了 " + String(taskType) + " 任务";
+  String sender = "定时任务";
+  
+  Serial.println("定时任务通知: " + message);
+  
+  // 推送到所有启用的通道
+  sendSMSToServer(sender.c_str(), message.c_str(), timeBuf);
+  
+  // 发送邮件通知
+  String subject = "[定时任务] " + String(taskType);
+  sendEmailNotification(subject.c_str(), message.c_str());
 }

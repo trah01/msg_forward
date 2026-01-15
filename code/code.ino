@@ -28,21 +28,11 @@
 #include <SPIFFS.h>
 #include <pdulib.h>
 
-// [调试] 看门狗开关: 0=禁用, 1=启用
-#define WDT_ENABLED 0
-
-#if WDT_ENABLED
-  #define wdt_reset() wdt_reset()
-#else
-  #define wdt_reset() ((void)0)
-#endif
-
 #define ENABLE_SMTP
 #define ENABLE_DEBUG
 #include <ReadyMail.h>
 #include <HTTPClient.h>
 #include <base64.h>
-#include <esp_task_wdt.h>
 
 // 项目配置文件
 #include "wifi_config.h"
@@ -109,29 +99,6 @@ void setup() {
   // 初始化长短信缓存
   initConcatBuffer();
   
-  #if WDT_ENABLED
-  // 启用看门狗 (60秒超时)
-  esp_task_wdt_config_t wdt_config = {
-      .timeout_ms = 60000,
-      .idle_core_mask = 0, // 不监控 IDLE 任务，只监控显式添加的任务
-      .trigger_panic = true
-  };
-  
-  esp_err_t err = esp_task_wdt_reconfigure(&wdt_config);
-  if (err != ESP_OK) {
-      err = esp_task_wdt_init(&wdt_config);
-  }
-  if (err == ESP_OK) {
-      esp_task_wdt_add(NULL);
-      
-      Serial.println("看门狗已启用(60s)");
-  } else {
-      Serial.printf("看门狗配置失败: 0x%x\n", err);
-  }
-  #else
-  Serial.println("看门狗已临时禁用 (用于调试)");
-  #endif
-  
   // 初始化短信存储(SPIFFS)
   initSmsStorage();
   
@@ -169,6 +136,7 @@ void setup() {
   
   // 启动 HTTP 服务器
   server.on("/", handleRoot);
+  server.on("/style.css", handleStyleCss);  // CSS 独立路由
   server.on("/save", HTTP_POST, handleSave);
   server.on("/tools", handleToolsPage);
   server.on("/sendsms", HTTP_POST, handleSendSms);
@@ -265,13 +233,11 @@ void setup() {
     applyAirplaneMode();
   }
   
-   // setup 结束前最后一次喂狗
 }
 
 // 检查定时飞行模式
 void checkScheduledAirplane() {
   if (!config.schedAirplaneEnabled) return;
-   // 检查前喂狗
   
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo)) {
@@ -324,24 +290,71 @@ void loop() {
     }
   }
   
-  // 检查定时任务
-  if (config.timerEnabled && timerIntervalSec > 0 && configValid) {
-    unsigned long elapsedSec = (millis() - lastTimerExec) / 1000;
-    if (elapsedSec >= timerIntervalSec) {
-      lastTimerExec = millis();
+  // 检查定时任务（基于起始日期计算）
+  if (config.timerEnabled && config.timerInterval > 0 && configValid) {
+    struct tm timeinfo;
+    if (getLocalTime(&timeinfo)) {
+      bool shouldExecute = false;
       
-      if (config.timerType == 0) {
-        if (sendATandWaitOK("AT+CGACT=1,1", 10000)) {
-          sendATandWaitOK("AT+MPING=1,\"8.8.8.8\",4,32,255", 30000);
-          delay(2000);
-          sendATandWaitOK("AT+CGACT=0,1", 5000);
-          publishMqttStatus("active_ping");
+      if (config.timerStartDate.length() >= 10) {
+        // 有起始日期，根据起始日期和间隔计算
+        int startYear = config.timerStartDate.substring(0, 4).toInt();
+        int startMonth = config.timerStartDate.substring(5, 7).toInt();
+        int startDay = config.timerStartDate.substring(8, 10).toInt();
+        
+        // 计算起始日期的天数（简化计算，从2020年1月1日起）
+        auto daysSince2020 = [](int y, int m, int d) -> long {
+          long days = (y - 2020) * 365 + (y - 2020 + 3) / 4;  // 年份天数（含闰年）
+          int monthDays[] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
+          days += monthDays[m - 1] + d;
+          if (m > 2 && ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0)) days++;
+          return days;
+        };
+        
+        long startDays = daysSince2020(startYear, startMonth, startDay);
+        long todayDays = daysSince2020(timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+        long diffDays = todayDays - startDays;
+        
+        // 检查今天是否是执行日（diffDays 是间隔的整数倍）
+        if (diffDays >= 0 && diffDays % config.timerInterval == 0) {
+          // 每天只执行一次（在早上8点后执行）
+          if (timeinfo.tm_hour >= 8) {
+            unsigned long todayKey = todayDays;
+            static unsigned long lastExecDay = 0;
+            if (todayKey != lastExecDay) {
+              lastExecDay = todayKey;
+              shouldExecute = true;
+            }
+          }
         }
-      } else if (config.timerType == 1 && config.timerPhone.length() > 0) {
-        sendSMS(config.timerPhone.c_str(), config.timerMessage.c_str());
-        stats.smsSent++;
-        saveStats();
-        publishMqttSmsSent(config.timerPhone.c_str(), config.timerMessage.c_str(), true);
+      } else {
+        // 无起始日期，使用旧的 millis 计时方式
+        unsigned long elapsedSec = (millis() - lastTimerExec) / 1000;
+        if (elapsedSec >= timerIntervalSec) {
+          lastTimerExec = millis();
+          shouldExecute = true;
+        }
+      }
+      
+      if (shouldExecute) {
+        const char* taskTypeName = config.timerType == 0 ? "Ping保活" : "发送短信";
+        
+        if (config.timerType == 0) {
+          if (sendATandWaitOK("AT+CGACT=1,1", 10000)) {
+            sendATandWaitOK("AT+MPING=1,\"8.8.8.8\",4,32,255", 30000);
+            delay(2000);
+            sendATandWaitOK("AT+CGACT=0,1", 5000);
+            publishMqttStatus("active_ping");
+          }
+        } else if (config.timerType == 1 && config.timerPhone.length() > 0) {
+          sendSMS(config.timerPhone.c_str(), config.timerMessage.c_str());
+          stats.smsSent++;
+          saveStats();
+          publishMqttSmsSent(config.timerPhone.c_str(), config.timerMessage.c_str(), true);
+        }
+        
+        // 推送定时任务执行通知
+        sendTimerTaskNotification(taskTypeName);
       }
     }
   }
@@ -382,7 +395,4 @@ void loop() {
   
   // 检查 URC 和解析
   checkSerial1URC();
-  
-  // 喂狗
-  
 }
